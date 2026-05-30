@@ -1,5 +1,7 @@
 require('dotenv').config();
 
+const fs = require('fs');
+const path = require('path');
 const TelegramBot = require('node-telegram-bot-api');
 const { GoogleGenAI } = require('@google/genai');
 
@@ -11,16 +13,101 @@ const ai = new GoogleGenAI({
 
 const conversations = {};
 
+const KNOWLEDGE_PATH = path.join(__dirname, 'BOT_KNOWLEDGE.md');
+
+let KNOWLEDGE_BASE = '';
+try {
+  KNOWLEDGE_BASE = fs.readFileSync(KNOWLEDGE_PATH, 'utf8');
+  console.log('✅ Đã nạp BOT_KNOWLEDGE.md');
+} catch (err) {
+  console.warn('⚠️ Không tìm thấy BOT_KNOWLEDGE.md, bot sẽ chạy với system prompt cơ bản.');
+}
+
 const SYSTEM_PROMPT = `
-Bạn là trợ lý AI cho GĐKD Bất động sản Hoàng Cường.
-Trả lời ngắn gọn, rõ ràng, thân thiện.
-Luôn dùng tiếng Việt.
-Nếu người dùng hỏi về bất động sản, hãy trả lời theo hướng thực tế, dễ hiểu, hỗ trợ tư vấn khách hàng.
+Bạn là trợ lý AI riêng của Hoàng Cường trong lĩnh vực bất động sản.
+
+Bạn không phải chatbot chung chung.
+Bạn là trợ lý thực chiến cho một GĐKD/môi giới bất động sản.
+
+Nguyên tắc bắt buộc:
+- Luôn dùng tiếng Việt.
+- Trả lời ngắn gọn, rõ ràng, thực tế.
+- Ưu tiên câu trả lời có thể copy dùng ngay.
+- Không bịa số liệu, giá bán, chính sách, pháp lý, hạ tầng, tiến độ.
+- Nếu thiếu dữ liệu, phải nói rõ cần kiểm tra lại.
+- Nếu thông tin là dự kiến, phải ghi rõ là dự kiến.
+- Không cam kết lợi nhuận.
+- Không tự chốt khách thay sale.
+- Không làm lộ token, API key, dữ liệu nội bộ.
+- Với nội dung gửi khách, văn phong phải tự nhiên như sale thật.
+
+Dưới đây là bộ kiến thức, quy tắc, phong cách và framework làm việc của Hoàng Cường:
+
+${KNOWLEDGE_BASE}
 `;
+
+const COMMAND_PROMPTS = {
+  content: `
+Chế độ /content:
+Viết content bất động sản theo framework trong BOT_KNOWLEDGE.
+Ưu tiên content có thể đăng Facebook/Zalo ngay.
+Nếu thiếu thông tin quan trọng, hỏi lại tối đa 1-3 câu.
+Nếu đủ dữ liệu, viết luôn bản hoàn chỉnh.
+`,
+
+  khach: `
+Chế độ /khach:
+Phân tích khách hàng theo tư duy GĐKD.
+Trả lời theo cấu trúc:
+1. Nhận định nhanh
+2. Mức độ nóng/ấm/nguội
+3. Nhu cầu thật sự có thể có
+4. Điểm cần khai thác thêm
+5. Rủi ro mất khách
+6. Cách tư vấn phù hợp
+7. Tin nhắn Zalo gợi ý
+8. Việc nên làm tiếp theo
+`,
+
+  duan: `
+Chế độ /duan:
+Tư vấn/thuyết minh dự án bất động sản.
+Tập trung vào vị trí, sản phẩm, tiện ích, tiềm năng, tệp khách phù hợp.
+Không bịa giá, pháp lý, chính sách.
+Nếu hỏi giá/CSBH/bảng hàng, phải nhắc kiểm tra bản mới nhất.
+`,
+
+  dashboard: `
+Chế độ /dashboard:
+Tạo dashboard điều hành cho Cường theo format GĐKD.
+Ưu tiên khách có khả năng giao dịch, khách bị bỏ quên, sale cần chỉ đạo, việc tạo doanh thu trong 24-48h.
+Nếu chưa có dữ liệu CRM, hãy yêu cầu người dùng gửi dữ liệu.
+`,
+
+  goikhach: `
+Chế độ /goikhach:
+Chọn khách nên gọi/chăm trước theo xác suất tạo giao dịch.
+Không chọn theo số lượng cuộc gọi.
+Ưu tiên khách có tín hiệu: hỏi giá, hỏi chính sách, hỏi mặt bằng, có tài chính, có timeline, đã hẹn đi xem.
+`,
+
+  tinnhan: `
+Chế độ /tinnhan:
+Soạn tin nhắn Zalo/Facebook ngắn gọn, tự nhiên, không giống chatbot.
+Không ép mua, không spam.
+Tin nhắn nên có lý do liên hệ rõ ràng.
+`,
+
+  tuyendung: `
+Chế độ /tuyendung:
+Viết content tuyển dụng sale/TPKD/CVKD bất động sản.
+Rõ cơ hội, rõ sản phẩm, rõ cơ chế, rõ người phù hợp, có CTA ứng tuyển.
+`
+};
 
 function splitMessage(text, maxLength = 3900) {
   const chunks = [];
-  let current = text;
+  let current = text || '';
 
   while (current.length > maxLength) {
     let splitIndex = current.lastIndexOf('\n', maxLength);
@@ -34,92 +121,165 @@ function splitMessage(text, maxLength = 3900) {
   return chunks;
 }
 
-bot.onText(/\/start/, (msg) => {
+async function sendLongMessage(chatId, text) {
+  const chunks = splitMessage(text);
+  for (const chunk of chunks) {
+    await bot.sendMessage(chatId, chunk);
+  }
+}
+
+function getCommandAndText(text) {
+  const trimmed = text.trim();
+
+  const commands = [
+    'content',
+    'khach',
+    'duan',
+    'dashboard',
+    'goikhach',
+    'tinnhan',
+    'tuyendung'
+  ];
+
+  for (const cmd of commands) {
+    if (trimmed.startsWith(`/${cmd}`)) {
+      return {
+        command: cmd,
+        text: trimmed.replace(`/${cmd}`, '').trim()
+      };
+    }
+  }
+
+  return {
+    command: 'normal',
+    text: trimmed
+  };
+}
+
+bot.onText(/\/start/, async (msg) => {
   const chatId = msg.chat.id;
   conversations[chatId] = [];
 
-  bot.sendMessage(
+  await bot.sendMessage(
     chatId,
-    '👋 Xin chào! Tôi là trợ lý AI của Hoàng Cường.\n' +
-    'Gửi câu hỏi, tôi sẽ hỗ trợ ngay.\n\n' +
-    '/clear - Xóa lịch sử chat'
+    '👋 Xin chào! Tôi là trợ lý AI BĐS của Hoàng Cường.\n\n' +
+    'Các lệnh có thể dùng:\n' +
+    '/content - Viết content quảng cáo/content thương hiệu\n' +
+    '/khach - Phân tích khách hàng\n' +
+    '/duan - Tư vấn/thuyết minh dự án\n' +
+    '/dashboard - Tạo dashboard GĐKD\n' +
+    '/goikhach - Chọn khách nên gọi/chăm trước\n' +
+    '/tinnhan - Soạn tin nhắn Zalo/Facebook\n' +
+    '/tuyendung - Viết content tuyển dụng sale\n' +
+    '/clear - Xóa lịch sử chat\n\n' +
+    'Ví dụ:\n' +
+    '/content Viết content ads biệt thự song lập biển Vin Cần Giờ, giá từ 110tr/m2\n\n' +
+    '/khach Khách nam 42 tuổi, ngân sách 25 tỷ, quan tâm biệt thự biển, đang so sánh shophouse\n\n' +
+    '/tinnhan Soạn tin nhắn chăm lại khách từng hỏi giá Vin Cần Giờ nhưng 10 ngày chưa phản hồi'
   );
 });
 
-bot.onText(/\/clear/, (msg) => {
+bot.onText(/\/clear/, async (msg) => {
   const chatId = msg.chat.id;
   conversations[chatId] = [];
-
-  bot.sendMessage(chatId, '✅ Đã xóa lịch sử.');
+  await bot.sendMessage(chatId, '✅ Đã xóa lịch sử chat.');
 });
 
 bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
-  const text = msg.text;
+  const rawText = msg.text;
 
-  if (!text || text.startsWith('/')) return;
+  if (!rawText) return;
+  if (rawText === '/start' || rawText === '/clear') return;
 
   if (!process.env.TELEGRAM_TOKEN) {
-    console.error('Thiếu TELEGRAM_TOKEN trong file .env');
+    console.error('Thiếu TELEGRAM_TOKEN trong biến môi trường.');
     return;
   }
 
   if (!process.env.GEMINI_API_KEY) {
-    console.error('Thiếu GEMINI_API_KEY trong file .env');
-    bot.sendMessage(chatId, '❌ Bot chưa có GEMINI_API_KEY trong file .env.');
+    console.error('Thiếu GEMINI_API_KEY trong biến môi trường.');
+    await bot.sendMessage(chatId, '❌ Bot chưa có GEMINI_API_KEY.');
     return;
   }
 
   if (!conversations[chatId]) conversations[chatId] = [];
 
+  const { command, text } = getCommandAndText(rawText);
+
+  if (!text && command !== 'normal') {
+    const guide = {
+      content: 'Bạn gửi thêm thông tin cần viết content nhé.\nVí dụ:\n/content Viết content ads căn 3PN view nội khu, giá từ 8 tỷ',
+      khach: 'Bạn gửi thêm thông tin khách hàng nhé.\nVí dụ:\n/khach Khách 35 tuổi, ngân sách 10 tỷ, muốn mua để ở gần trung tâm',
+      duan: 'Bạn gửi thêm thông tin dự án nhé.\nVí dụ:\n/duan Tóm tắt Vin Cần Giờ cho khách đầu tư dài hạn',
+      dashboard: 'Bạn gửi dữ liệu CRM hoặc nội dung cần phân tích nhé.\nVí dụ:\n/dashboard Đây là danh sách khách hôm nay...',
+      goikhach: 'Bạn gửi danh sách khách/CRM để tôi chọn khách nên gọi trước nhé.',
+      tinnhan: 'Bạn gửi bối cảnh khách hàng để tôi soạn tin nhắn nhé.',
+      tuyendung: 'Bạn gửi vị trí cần tuyển, sản phẩm đang bán và cơ chế chính nhé.'
+    };
+
+    await bot.sendMessage(chatId, guide[command] || 'Bạn gửi thêm nội dung cần xử lý nhé.');
+    return;
+  }
+
   try {
     await bot.sendChatAction(chatId, 'typing');
 
+    let instruction = SYSTEM_PROMPT;
+
+    if (COMMAND_PROMPTS[command]) {
+      instruction += '\n\n' + COMMAND_PROMPTS[command];
+    }
+
     conversations[chatId].push({
       role: 'user',
-      parts: [{ text }],
+      parts: [{ text }]
     });
 
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: conversations[chatId],
       config: {
-        systemInstruction: SYSTEM_PROMPT,
-        maxOutputTokens: 1024,
-      },
+        systemInstruction: instruction,
+        maxOutputTokens: 1800,
+        temperature: 0.7
+      }
     });
 
     const reply = response.text || 'Xin lỗi, tôi chưa có phản hồi phù hợp.';
 
     conversations[chatId].push({
       role: 'model',
-      parts: [{ text: reply }],
+      parts: [{ text: reply }]
     });
 
     if (conversations[chatId].length > 20) {
       conversations[chatId] = conversations[chatId].slice(-20);
     }
 
-    const chunks = splitMessage(reply);
-    for (const chunk of chunks) {
-      await bot.sendMessage(chatId, chunk);
-    }
+    await sendLongMessage(chatId, reply);
 
   } catch (err) {
     console.error('Lỗi:', err);
 
     let errorText = '❌ Có lỗi xảy ra, thử lại nhé.';
 
-    if (err.message && err.message.includes('API key')) {
+    const message = (err.message || '').toLowerCase();
+
+    if (message.includes('api key')) {
       errorText = '❌ Gemini API key đang sai hoặc chưa được kích hoạt.';
     }
 
-    if (err.message && err.message.includes('quota')) {
+    if (message.includes('quota')) {
       errorText = '❌ Gemini API đang hết quota hoặc bị giới hạn lượt dùng.';
     }
 
-    bot.sendMessage(chatId, errorText);
+    if (message.includes('safety')) {
+      errorText = '❌ Nội dung bị hệ thống AI chặn vì lý do an toàn.';
+    }
+
+    await bot.sendMessage(chatId, errorText);
   }
 });
 
-console.log('🤖 Bot Gemini đang chạy...');
+console.log('🤖 Bot Gemini BĐS đang chạy...');
