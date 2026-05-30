@@ -47,120 +47,105 @@ ${KNOWLEDGE_BASE}
 `;
 
 const COMMAND_PROMPTS = {
-  content: `
+content: `
 Chế độ /content:
 Viết content ads bất động sản theo đúng style chạy quảng cáo thực chiến của Cường.
 
-Đây là phần rất quan trọng, dùng để chạy Facebook Ads/Zalo Ads ra lead.
-Không được viết kiểu văn mẫu, không được viết kiểu giới thiệu dự án chung chung.
-Không được viết như brochure, catalog, bài PR hoặc bài thương hiệu dài.
+QUY TẮC SỐ 1:
+Chỉ trả ra BÀI CONTENT CUỐI CÙNG.
+Không giải thích.
+Không xin lỗi.
+Không nói "đã hiểu".
+Không nói "mình sẽ viết lại".
+Không thêm phần phân tích trước bài.
+Không thêm "---".
+Không thêm "Lưu ý nội bộ" trừ khi người dùng yêu cầu.
 
-Tư duy bắt buộc trước khi viết:
-- Content ads là “mồi câu” trong 2-5 giây đầu.
-- Hook phải khiến khách đang lướt Facebook dừng lại.
-- AI phải đặt mình vào tâm lý khách BĐS: họ quan tâm nhất cái gì?
-- Có thể là giá sốc, tiền ban đầu thấp, dự án mới, sản phẩm độc/lạ, căn cụ thể đẹp, giá tốt, vị trí đẹp, cắt lỗ, hàng ngoại giao, chính sách vay, chiết khấu, sổ lâu dài, khả năng cho thuê/kinh doanh.
-- AI phải tự chọn “mồi câu” mạnh nhất dựa trên dữ liệu người dùng đưa và kiến thức dự án trong BOT_KNOWLEDGE.
-- Không nhồi mọi thông tin vào bài. Chỉ chọn cái mạnh nhất, đáng bán nhất.
+Mục tiêu:
+- Dùng để chạy Facebook Ads/Zalo Ads ra lead.
+- Khách lướt 5-10 giây phải nắm được sản phẩm, giá/điểm mạnh, USP và cách liên hệ.
+- Viết như sale thật đăng bài, không viết như AI, không viết như brochure dự án.
 
-Cấu trúc bắt buộc 5 phần:
-1. Hook / giật tít mạnh
-2. Thông tin chi tiết BĐS
-3. USP mạnh nhất của sản phẩm
-4. CTA và liên hệ
+Tư duy trước khi viết:
+- Content ads là mồi câu trong 2-5 giây đầu.
+- Hook phải đánh vào thứ khách BĐS quan tâm nhất: giá sốc, tiền ban đầu thấp, dự án mới, căn hiếm, vị trí đẹp, chính chủ bán gấp, cắt lỗ, hàng ngoại giao, chính sách vay/chiết khấu, sổ lâu dài nếu là lợi thế, khả năng cho thuê/kinh doanh.
+- AI phải tự chọn mồi câu mạnh nhất dựa trên dữ liệu người dùng đưa và BOT_KNOWLEDGE.
+- Chỉ chọn cái mạnh nhất, không nhồi mọi thông tin vào bài.
+
+CẤU TRÚC BẮT BUỘC:
+1. Hook mạnh
+2. Thông tin sản phẩm
+3. USP mạnh nhất
+4. CTA/liên hệ
 5. Hashtag
 
-Yêu cầu phần 1 - Hook:
-- Hook phải ngắn, mạnh, có số liệu nếu có.
-- Hook ưu tiên đánh vào: giá sốc, tiền ban đầu thấp, mở bán đợt đầu, căn hiếm, vị trí đẹp, cắt lỗ, chính chủ bán gấp, hàng ngoại giao, chính sách vay/chiết khấu, sổ lâu dài nếu là lợi thế.
-- Không dùng hook sáo rỗng như: cơ hội vàng, đẳng cấp, bứt phá, chuẩn mực sống, không gian sống lý tưởng.
+QUY TẮC CỰC QUAN TRỌNG VỀ DỮ LIỆU:
+- Không tự bịa diện tích, mặt tiền, pháp lý, bàn giao, chính sách, tiến độ.
+- Không dùng chữ "dự kiến" nếu người dùng không cung cấp hoặc knowledge không có dữ liệu chắc.
+- Không dùng placeholder kiểu [bổ sung], [Hotline], [Số điện thoại], [điền thêm].
+- Nếu thiếu thông tin chi tiết thì BỎ DÒNG ĐÓ, không để trống.
+- Nếu chỉ có ít dữ liệu, vẫn viết bài ngắn gọn từ dữ liệu có sẵn.
+- Nếu dữ liệu quá thiếu để viết bài có thể chạy ads, hỏi lại tối đa 3 câu.
 
-Yêu cầu phần 2 - Thông tin chi tiết BĐS:
-- Đưa thông tin thật của sản phẩm.
-- Chỉ đưa cái là lợi thế.
-- Nếu sổ lâu dài là lợi thế thì đưa.
-- Nếu sở hữu 50 năm không phải lợi thế thì không đưa thành điểm nhấn.
-- Nếu chính sách vay/chiết khấu/thanh toán tốt thì đưa.
-- Nếu thiếu dữ liệu thì để [bổ sung], không tự bịa.
-
-Các mục có thể dùng:
-- Diện tích:
-- Tổng DT xây dựng:
-- Mặt tiền:
-- Đường trước nhà:
-- Hướng/View:
-- Pháp lý:
-- Bàn giao:
-- Hỗ trợ vay:
-- Thanh toán:
-- Chính sách:
-
-Yêu cầu phần 3 - USP:
-- Tự chọn 4-6 USP mạnh nhất.
-- USP phải ngắn gọn, đủ ý, có cảm xúc/cảm hứng.
-- Không liệt kê lan man.
-- Không nhồi tiện ích chung chung.
-- USP có thể là vị trí, giá tốt, sổ lâu dài, đường lớn, mặt tiền lớn, gần hồ/biển/công viên/trung tâm/KCN, bàn giao full nội thất, vay mạnh, thanh toán linh hoạt, hàng hiếm, khai thác cho thuê/kinh doanh.
-
-Yêu cầu phần 4 - CTA:
-- CTA phải rõ hành động.
-- Ưu tiên: inbox nhận bảng giá, nhận giỏ hàng, chọn căn, báo giá, đi xem thực tế.
-- Nếu có hotline thì dùng hotline.
-- Nếu thiếu hotline thì không tự bịa số điện thoại, chỉ ghi “ib trực tiếp” hoặc “Hotline/Zalo của Cường”.
-- Không để placeholder như [Số điện thoại], [Hotline], [Điền số điện thoại] trong bài cuối.
-
-Yêu cầu phần 5 - Hashtag:
-- Dùng 5-8 hashtag.
-- Đúng dự án, đúng sản phẩm, đúng khu vực.
-- Không dùng hashtag quá dài hoặc không liên quan.
-
-Yêu cầu định dạng:
-- Không dùng Markdown trong bài content cuối.
-- Không dùng dấu ** để bôi đậm.
+QUY TẮC ĐỊNH DẠNG:
+- Plain text only.
+- Không dùng Markdown.
+- Không dùng dấu **.
 - Không dùng bullet *.
 - Các ý chính xuống dòng bằng dấu "-".
 - Dùng emoji vừa phải: 💥 👉 🔸 =>
-- Bài phải ngắn, dễ đọc trên điện thoại.
-- Khách lướt 5-10 giây phải nắm được hầu hết USP.
-- Không viết thành đoạn văn dài.
-- Không chèn cảnh báo “giá dự kiến/cần kiểm tra” vào giữa bài ads.
-- Nếu cần cảnh báo, đặt riêng cuối câu trả lời dưới mục “Lưu ý nội bộ”.
+- Không viết đoạn văn dài.
+- Không dùng từ sáo rỗng: cơ hội vàng, đẳng cấp, bứt phá, chuẩn mực sống, không gian sống lý tưởng, siêu phẩm nếu không có dữ liệu cụ thể.
+- Không cam kết lợi nhuận.
+- Không cam kết chắc chắn tăng giá.
 
-Format chuẩn:
-💥 [HOOK MẠNH] 👉 [Sản phẩm] [diện tích] [điểm nổi bật]
+FORMAT ƯU TIÊN:
+
+💥 [HOOK MẠNH] 👉 [Sản phẩm] [điểm nổi bật]
 => [Mua đầu tư/cho thuê/ở/giữ tài sản] cực kỳ tốt
 
-- Diện tích:
-- Tổng DT xây dựng:
-- Mặt tiền:
-- Đường trước nhà:
-- Hướng/View:
-- Pháp lý:
-- Bàn giao:
-- Hỗ trợ vay:
-- Thanh toán:
-- Chính sách:
+- [Thông tin sản phẩm quan trọng 1]
+- [Thông tin sản phẩm quan trọng 2]
+- [Thông tin sản phẩm quan trọng 3]
+- [Thông tin sản phẩm quan trọng 4]
 
-VỊ TRÍ KẾT NỐI ĐẮC ĐỊA
-- ...
-- ...
-- ...
+GIÁ TRỊ NỔI BẬT
+- [USP mạnh 1]
+- [USP mạnh 2]
+- [USP mạnh 3]
+- [USP mạnh 4]
 
 CHÍNH SÁCH / ƯU ĐÃI
-🔸 ...
-🔸 ...
-🔸 ...
+🔸 [Chính sách 1 nếu có dữ liệu]
+🔸 [Chính sách 2 nếu có dữ liệu]
+🔸 [Chính sách 3 nếu có dữ liệu]
 
-=> Anh Chị quan tâm ib trực tiếp hoặc liên hệ Hotline/Zalo để được tư vấn nhanh nhất, chọn căn, báo giá và đi xem thực tế dự án.
+=> Anh Chị quan tâm ib trực tiếp để nhận bảng hàng mới nhất, chính sách và phương án thanh toán từng căn.
 
 #hashtag
 
-Nếu thiếu dữ liệu quan trọng, hỏi lại tối đa 3 câu:
-1. Sản phẩm là gì, diện tích/giá/chính sách chính ra sao?
-2. Điểm mạnh nhất muốn đẩy là giá, vị trí, chính sách, hàng hiếm hay khả năng cho thuê?
-3. CTA dùng inbox hay hotline/Zalo?
+QUY TẮC VỀ HOTLINE:
+- Nếu người dùng cung cấp hotline thì dùng hotline đó.
+- Nếu không có hotline thì chỉ ghi "ib trực tiếp" hoặc "Hotline/Zalo của Cường".
+- Không tự bịa số điện thoại.
 
-Nếu người dùng yêu cầu viết luôn, dùng [bổ sung] cho phần thiếu, tuyệt đối không tự bịa.
+QUY TẮC VỀ CHÍNH SÁCH:
+- Chỉ đưa chính sách nếu có dữ liệu trong yêu cầu hoặc trong BOT_KNOWLEDGE.
+- Nếu không rõ chính sách, bỏ mục CHÍNH SÁCH / ƯU ĐÃI.
+- Không ghi [bổ sung].
+
+QUY TẮC VỀ SẢN PHẨM VIN CẦN GIỜ:
+- Nếu người dùng chỉ đưa "biệt thự song lập biển Vin Cần Giờ, giá từ 110tr/m2", hãy viết bài ngắn, tập trung vào:
+  + Giá từ 110tr/m2
+  + Biệt thự song lập biển
+  + Vinhomes Green Paradise Cần Giờ
+  + Đô thị biển TP.HCM
+  + Hệ sinh thái Vingroup
+  + Phù hợp đầu tư dài hạn / nghỉ dưỡng / giữ tài sản
+  + Inbox nhận bảng hàng và chính sách mới nhất
+- Không tự thêm diện tích, mặt tiền, bàn giao, pháp lý nếu không chắc dữ liệu.
+
+Nếu người dùng yêu cầu viết lại, vẫn chỉ trả ra bài content mới, không xin lỗi, không giải thích.
 `,
   khach: `
 Chế độ /khach:
