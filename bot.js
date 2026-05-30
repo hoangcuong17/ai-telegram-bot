@@ -12,6 +12,7 @@ const ai = new GoogleGenAI({
 });
 
 const conversations = {};
+const conversationModes = {};
 
 const KNOWLEDGE_PATH = path.join(__dirname, 'BOT_KNOWLEDGE.md');
 
@@ -251,6 +252,7 @@ function getCommandAndText(text) {
 bot.onText(/\/start/, async (msg) => {
   const chatId = msg.chat.id;
   conversations[chatId] = [];
+  conversationModes[chatId] = null;
 
   await bot.sendMessage(
     chatId,
@@ -274,9 +276,9 @@ bot.onText(/\/start/, async (msg) => {
 bot.onText(/\/clear/, async (msg) => {
   const chatId = msg.chat.id;
   conversations[chatId] = [];
+  conversationModes[chatId] = null;
   await bot.sendMessage(chatId, '✅ Đã xóa lịch sử chat.');
 });
-
 bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
   const rawText = msg.text;
@@ -298,6 +300,15 @@ bot.on('message', async (msg) => {
   if (!conversations[chatId]) conversations[chatId] = [];
 
   const { command, text } = getCommandAndText(rawText);
+let activeCommand = command;
+
+if (command !== 'normal' && COMMAND_PROMPTS[command]) {
+  conversationModes[chatId] = command;
+}
+
+if (command === 'normal' && conversationModes[chatId]) {
+  activeCommand = conversationModes[chatId];
+}
 
   if (!text && command !== 'normal') {
     const guide = {
@@ -319,9 +330,9 @@ bot.on('message', async (msg) => {
 
     let instruction = SYSTEM_PROMPT;
 
-    if (COMMAND_PROMPTS[command]) {
-      instruction += '\n\n' + COMMAND_PROMPTS[command];
-    }
+    if (COMMAND_PROMPTS[activeCommand]) {
+  instruction += '\n\n' + COMMAND_PROMPTS[activeCommand];
+}
 
     conversations[chatId].push({
       role: 'user',
@@ -332,10 +343,10 @@ bot.on('message', async (msg) => {
       model: 'gemini-2.5-flash',
       contents: conversations[chatId],
       config: {
-        systemInstruction: instruction,
-        maxOutputTokens: 1800,
-        temperature: 0.7
-      }
+  systemInstruction: instruction,
+  maxOutputTokens: 3000,
+  temperature: 0.55
+}
     });
 
     const reply = response.text || 'Xin lỗi, tôi chưa có phản hồi phù hợp.';
