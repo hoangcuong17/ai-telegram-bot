@@ -1,0 +1,53 @@
+TC = tài chính
+
+kmn = không nghe máy
+
+nt = nhắn tin
+
+ib = inbox
+
+QC = quảng cáo
+
+add zalo = kết bạn zalo
+
+c = chị/cô/chú
+
+a = anh
+
+kh = khách hàng
+
+sp = sản phẩm
+
+lk = liền kề
+
+sl = song lập
+
+bt = biệt thự
+
+TB = gọi diện nhưng hệ thống báo thuê bao không liên lạc được
+kcnc = không có nhu cầu
+k = không
+dc = được
+e = em
+dt = diện tích
+1PN = 1 phòng ngủ
+2PN = 2 phòng ngủ
+3PN = 3 phòng ngủ
+4PN = 4 phòng ngủ
+PN = phòng ngủ
+ttin = thông tin
+qtam = quan tâm
+bđs = bất động sản
+mk = mình
+uk = ừ
+nc = nhu cầu / nói chuyện
+gth = giới thiệu
+HN = hà Nội
+TP = thành phố
+HCM = hồ chí minh
+j = gì
+cx = cũng
+trc = trước
+nc3p = nói chuyện 3 phút (các từ khác cũng tương tự)
+qt = quan tâm
+tks = thank/cảm ơn

@@ -1,0 +1,75 @@
+CONTENT ADS FRAMEWORK – BẤT ĐỘNG SẢN DỰ ÁN
+
+Mục tiêu:
+Tạo content Facebook Ads ngắn gọn, rõ giá trị, ra lead.
+
+================================================
+1. CẤU TRÚC CHUẨN
+================================================
+
+💥 [HOOK GIẬT MẠNH] 👉 [Loại sản phẩm] [Diện tích] [Điểm nổi bật]
+=> [Lợi ích mua đầu tư / ở / khai thác]
+
+- Diện tích:
+- Xây dựng:
+- Mặt tiền:
+- Pháp lý:
+- Bàn giao:
+- Chính sách:
+- Thanh toán:
+- Hỗ trợ vay:
+
+VỊ TRÍ / GIÁ TRỊ NỔI BẬT:
+- ...
+- ...
+- ...
+
+=> Anh/chị quan tâm ib trực tiếp hoặc liên hệ Hotline để được tư vấn, chọn căn, báo giá và đi xem thực tế dự án.
+
+#hashtag
+
+================================================
+2. CÁC KIỂU HOOK NÊN TEST
+================================================
+
+- 💥 CHỈ TỪ [X] TỶ SỞ HỮU NGAY
+- 💥 CHỈ CẦN [X]% BAN ĐẦU
+- 💥 CHÍNH CHỦ CẦN BÁN GẤP
+- 💥 GIÁ CHỈ TỪ [X]TR/M2
+- 💥 CĂN HIẾM [MẶT TIỀN/VIEW/VỊ TRÍ]
+- 💥 SHOP/LK/BT [DIỆN TÍCH] – [ĐIỂM MẠNH]
+- 💥 GIỎ HÀNG ĐẸP CHO NHÀ ĐẦU TƯ
+- 💥 CÁCH [ĐỊA ĐIỂM] CHỈ [X] PHÚT
+- 💥 HỖ TRỢ VAY / ÂN HẠN / CHIẾT KHẤU TỐT
+
+================================================
+3. YÊU CẦU KHI VIẾT ADS
+================================================
+
+- Hook 1-2 dòng đầu quyết định 70% hiệu quả.
+- Không viết dài ở đầu bài.
+- Không dùng câu chữ quá triết lý.
+- Ưu tiên số liệu cụ thể.
+- Nếu có giá, % thanh toán, diện tích, vị trí thì đưa lên đầu.
+- CTA rõ: inbox, gọi hotline, nhận bảng giá, đi xem thực tế.
+
+================================================
+4. PROMPT TẠO ADS
+================================================
+
+Dùng câu lệnh:
+
+Hãy đóng vai AI_CONTENT_MANAGER_V1.
+
+Dựa trên framework CONTENT_ADS_FRAMEWORK và dữ liệu dự án bên dưới, hãy viết [số lượng] content Facebook Ads.
+
+Yêu cầu:
+- Style giống content BĐS dự án đang chạy ads ra lead.
+- Hook mạnh trong 1-2 dòng đầu.
+- Ngắn gọn, rõ thông tin, dễ đọc.
+- Có CTA cuối bài.
+- Mỗi mẫu test một hook khác nhau.
+- Không tự bịa số liệu nếu dữ liệu chưa có.
+
+Dữ liệu dự án:
+[điền dữ liệu]

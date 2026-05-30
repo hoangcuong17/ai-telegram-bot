@@ -1,0 +1,5 @@
+.env
+.env_backup
+node_modules
+npm-debug.log
+bot_anthropic_backup.js

@@ -1,0 +1,32 @@
+CÁC CÂU LỆNH MẪU DÙNG HÀNG NGÀY
+
+1. Tạo Dashboard GĐKD:
+
+Hãy đọc AI_GDKD_V3 và file CRM dự án [Tên dự án].
+Tạo Dashboard điều hành buổi sáng cho Cường.
+Ưu tiên khách có khả năng giao dịch, khách bị bỏ quên, sale cần chỉ đạo, việc tạo doanh thu hôm nay.
+
+2. Chọn khách cần gọi:
+
+Đọc CRM dự án [Tên dự án].
+Nếu hôm nay tôi chỉ có thể gọi 5 khách, hãy chọn đúng 5 khách có xác suất tạo giao dịch cao nhất.
+Giải thích theo tư duy GĐKD.
+
+3. Tạo content Ads:
+
+Hãy đọc AI_CONTENT_MANAGER_V1 và CONTENT_ADS_FRAMEWORK.
+Dựa trên dữ liệu dự án [Tên dự án], viết 10 content Facebook Ads.
+Mỗi content test một hook khác nhau.
+Ưu tiên ra lead.
+
+4. Tạo content thương hiệu:
+
+Hãy đọc AI_CONTENT_MANAGER_V1.
+Tạo 30 ý tưởng content thương hiệu cá nhân cho Cường về [Tên dự án].
+Mục tiêu: tạo niềm tin, giải đáp băn khoăn khách hàng, xây hình ảnh chuyên gia tư vấn đầu tư BĐS.
+
+5. Tạo tin nhắn chăm khách cũ:
+
+Hãy đọc AI_CONTENT_MANAGER_V1.
+Tạo 20 tin nhắn chăm lại khách cũ đã quan tâm [Tên dự án] nhưng lâu chưa tương tác.
+Chia theo nhóm: hỏi giá, hỏi CSBH, hẹn đi xem, chưa đủ tài chính, đang so sánh dự án khác.

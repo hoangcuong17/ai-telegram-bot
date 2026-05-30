@@ -1,0 +1,37 @@
+Quy tắc đọc CRM khách hàng bất động sản:
+
+1. Mỗi file/sheet thường tương ứng với một dự án riêng.
+Ví dụ: sheet KH Vin Hạ Long Xanh nghĩa là khách trong sheet chủ yếu quan tâm Vin Hạ Long Xanh.
+
+2. Các cột quan trọng:
+- Họ tên
+- Số điện thoại
+- Nguồn
+- Ngày ra
+- Người chăm
+- Tình trạng chăm sóc
+
+3. Cột "Tình trạng chăm sóc" là lịch sử làm việc với khách qua từng ngày.
+Ví dụ:
+C29/5 nghĩa là Cường chăm ngày 29/5.
+KH29/5 nghĩa là bạn KH chăm ngày 29/5.
+N29/5 nghĩa là bạn Nhi chăm ngày 29/5.
+Các dòng mới hơn thường nằm phía dưới.
+
+4. Màu sắc:
+- Xanh lá: khách quan tâm sâu,có khả năng mua hàng tạo ra doanh số, cần ưu tiên xử lý ngay
+- Hồng: khách có xu hướng quan tâm dự án khác hoặc phát sinh hướng khác. sau khi đã xử lý các khách hàng nóng thì nên để ý để chăm
+- Vàng: khách đã từ chối hoặc không còn phù hợp với dự án hiện tại.
+- Không màu: khách chưa nói chuyện sâu hoặc chưa cần ưu tiên cao. cũng vẫn cần chăm sóc để chuẩn đổi, chỉ là không cần ưu tiên
+
+5. AI không được tự chốt khách, không được tư vấn thay sale ở các tình huống nhạy cảm.
+AI chỉ được:
+- phân tích lịch sử chăm sóc
+- đề xuất khách nên chăm
+- đề xuất hướng xử lý
+- soạn tin nhắn nháp
+- gợi ý nội dung gọi điện
+
+6. Khách nóng cần chuyển cho sale người thật xử lý.
+7. Khách nguội có thể chăm lại bằng tin nhắn nhẹ nhàng, gửi thêm thông tin để kéo sự quan tâm của khách hàng, không ép mua.
+8. Nếu khách đã từ chối dự án này, không tiếp tục bám dự án đó. Chỉ lưu lại để sau này chào dự án khác phù hợp hơn. hoặc cũng có thể lâu lâu gửi thêm những thông tin quan trọng của dự án hoặc gửi content chào dự án khác. Các khách kiểu này AI tự làm không cần hỏi ý kiến sales
