@@ -26,6 +26,64 @@ const conversationModes = {};
 
 const MAX_HISTORY_ITEMS = 20;
 const GEMINI_MODEL = 'gemini-2.5-flash';
+const GOOGLE_SCRIPT_URL = process.env.GOOGLE_SCRIPT_URL || '';
+
+async function sendToCRM(payload) {
+  if (!GOOGLE_SCRIPT_URL) {
+    console.warn('⚠️ Chưa có GOOGLE_SCRIPT_URL, bỏ qua lưu CRM.');
+    return { ok: false, message: 'Missing GOOGLE_SCRIPT_URL' };
+  }
+
+  try {
+    const response = await fetch(GOOGLE_SCRIPT_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const text = await response.text();
+
+    try {
+      return JSON.parse(text);
+    } catch (error) {
+      console.error('❌ Apps Script không trả JSON:', text);
+      return { ok: false, message: 'Apps Script không trả JSON hợp lệ' };
+    }
+  } catch (error) {
+    console.error('❌ Lỗi gửi dữ liệu sang Google Sheet:', error.message);
+    return { ok: false, message: error.message };
+  }
+}
+
+async function logChatToCRM(msg, role, content) {
+  const from = msg.from || {};
+
+  return sendToCRM({
+    action: 'log_chat',
+    chatId: msg.chat.id,
+    telegramId: from.id || '',
+    username: from.username || '',
+    role,
+    content,
+  });
+}
+
+async function addCustomerToCRM(msg, name, phone, note = '') {
+  const from = msg.from || {};
+
+  return sendToCRM({
+    action: 'add_customer',
+    name,
+    phone,
+    source: 'Telegram',
+    telegramId: from.id || '',
+    username: from.username || '',
+    note,
+    status: 'Mới',
+  });
+}
 
 function readMarkdownFile(fileName, required = false) {
   const filePath = path.join(__dirname, fileName);
@@ -310,10 +368,12 @@ function buildStartMessage() {
     '/goikhach - Chọn khách nên gọi/chăm trước\n' +
     '/tinnhan - Soạn tin nhắn Zalo/Facebook\n' +
     '/tuyendung - Viết content tuyển dụng sale\n' +
+    '/addkh - Thêm khách hàng vào Google Sheet CRM\n' +
+    '/crmtest - Kiểm tra kết nối Google Sheet CRM\n' +
     '/clear - Xóa lịch sử chat và chế độ đang dùng\n\n' +
     'Ví dụ:\n' +
     '/content Viết content ads biệt thự song lập biển Vin Cần Giờ, giá từ 110tr/m2\n\n' +
-    '/khach Khách nam 42 tuổi, ngân sách 25 tỷ, quan tâm biệt thự biển, đang so sánh shophouse\n\n' +
+    '/addkh Nguyễn Văn A | 0988123456 | Khách hỏi Vin Cần Giờ, tài chính 20 tỷ\n\n' +
     '/tinnhan Soạn tin nhắn chăm lại khách từng hỏi giá Vin Cần Giờ nhưng 10 ngày chưa phản hồi'
   );
 }
@@ -336,12 +396,66 @@ bot.onText(/\/clear/, async (msg) => {
   await bot.sendMessage(chatId, '✅ Đã xóa lịch sử chat và chế độ đang dùng.');
 });
 
+bot.onText(/\/crmtest/, async (msg) => {
+  const chatId = msg.chat.id;
+
+  const result = await sendToCRM({
+    action: 'log_chat',
+    chatId,
+    telegramId: msg.from?.id || '',
+    username: msg.from?.username || '',
+    role: 'system',
+    content: 'Test kết nối CRM từ Telegram bot',
+  });
+
+  if (result.ok) {
+    await bot.sendMessage(chatId, '✅ Kết nối Google Sheet CRM thành công.');
+  } else {
+    await bot.sendMessage(chatId, `❌ Kết nối CRM lỗi: ${result.message}`);
+  }
+});
+
+bot.onText(/\/addkh (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const input = match[1];
+
+  const parts = input.split('|').map(item => item.trim());
+
+  const name = parts[0] || '';
+  const phone = parts[1] || '';
+  const note = parts[2] || '';
+
+  if (!name || !phone) {
+    await bot.sendMessage(
+      chatId,
+      'Sai cú pháp.\nDùng mẫu:\n/addkh Tên khách | Số điện thoại | Ghi chú'
+    );
+    return;
+  }
+
+  const result = await addCustomerToCRM(msg, name, phone, note);
+
+  if (result.ok) {
+    await bot.sendMessage(chatId, `✅ Đã lưu khách hàng: ${name} - ${phone}`);
+  } else {
+    await bot.sendMessage(chatId, `❌ Lưu khách hàng lỗi: ${result.message}`);
+  }
+});
+
 bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
   const rawText = msg.text;
 
   if (!rawText) return;
-  if (rawText === '/start' || rawText === '/clear') return;
+
+  if (
+    rawText === '/start' ||
+    rawText === '/clear' ||
+    rawText === '/crmtest' ||
+    rawText.startsWith('/addkh ')
+  ) {
+    return;
+  }
 
   if (!conversations[chatId]) conversations[chatId] = [];
 
@@ -377,6 +491,8 @@ bot.on('message', async (msg) => {
       parts: [{ text }]
     });
 
+    await logChatToCRM(msg, 'user', text);
+
     const response = await ai.models.generateContent({
       model: GEMINI_MODEL,
       contents: conversations[chatId],
@@ -393,6 +509,8 @@ bot.on('message', async (msg) => {
       role: 'model',
       parts: [{ text: reply }]
     });
+
+    await logChatToCRM(msg, 'bot', reply);
 
     if (conversations[chatId].length > MAX_HISTORY_ITEMS) {
       conversations[chatId] = conversations[chatId].slice(-MAX_HISTORY_ITEMS);
