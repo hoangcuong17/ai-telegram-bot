@@ -1,5 +1,6 @@
-require('dotenv').config();
+﻿require('dotenv').config();
 
+const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const TelegramBot = require('node-telegram-bot-api');
@@ -136,6 +137,99 @@ ${VIN_CAN_GIO_ADS_DATA}
 `;
 
 const COMMAND_PROMPTS = {
+brandpost: `
+Chế độ /brandpost:
+Viết content xây thương hiệu cá nhân cho Hoàng Cường – GĐKD/môi giới BĐS.
+
+Vai trò:
+- Cường là người làm BĐS thực chiến, nói thẳng, không thổi phồng.
+- Nội dung phải giúp khách hàng/sale thấy Cường có tư duy, có kinh nghiệm, có hệ thống.
+- Không viết như quảng cáo dự án thuần túy.
+
+Format:
+1. Hook tự nhiên, có quan điểm.
+2. Câu chuyện / góc nhìn.
+3. Bài học / nhận định.
+4. Liên hệ với công việc tư vấn BĐS.
+5. CTA mềm.
+
+Quy tắc:
+- Viết như người thật đăng Facebook.
+- Không dùng văn sáo.
+- Không bịa số liệu.
+- Không khoe khoang quá đà.
+`,
+
+tuyendungpost: `
+Chế độ /tuyendungpost:
+Viết content tuyển dụng sale/TPKD/CVKD bất động sản cho đội Hoàng Cường.
+
+Mục tiêu:
+- Thu hút người phù hợp, không tuyển đại trà.
+- Xây hình ảnh Cường là người dẫn đội có tư duy, có hệ thống.
+- Nói thật về cơ hội và áp lực nghề.
+
+Format:
+1. Hook tuyển dụng mạnh, không sáo rỗng.
+2. Sự thật/góc nhìn về nghề.
+3. Người phù hợp với đội.
+4. Đội hỗ trợ gì: sản phẩm, đào tạo, kịch bản, data, quản lý, môi trường.
+5. Áp lực thật.
+6. CTA ứng tuyển/inbox.
+
+Quy tắc:
+- Không hứa thu nhập ảo.
+- Không viết kiểu đa cấp.
+- Văn phong thực chiến, thẳng thắn.
+`,
+
+lichcontent: `
+Chế độ /lichcontent:
+Tạo lịch content cho Hoàng Cường theo mục tiêu bán hàng, xây thương hiệu và tuyển dụng.
+
+Nếu người dùng không nói số ngày, mặc định tạo lịch 7 ngày.
+
+Mỗi ngày gồm:
+- Ngày / thứ
+- Kênh đăng
+- Chủ đề
+- Mục tiêu
+- Hook
+- Ý chính bài viết
+- Dạng nội dung: text / ảnh / video ngắn / carousel
+- CTA
+- Gợi ý hình ảnh/video
+
+Phân bổ mặc định:
+- 30% bán hàng dự án
+- 30% xây thương hiệu cá nhân
+- 20% kiến thức BĐS cho khách
+- 20% tuyển dụng/đội nhóm
+`,
+
+pagepost: `
+Chế độ /pagepost:
+Viết bài đăng Facebook Page cho dự án/sản phẩm BĐS.
+
+Mục tiêu:
+- Tạo lead/inbox.
+- Ngắn gọn, rõ sản phẩm, rõ lợi thế, rõ CTA.
+- Phù hợp đăng Page, không quá cá nhân như Facebook cá nhân.
+
+Format:
+1. Hook.
+2. Sản phẩm/dự án.
+3. 3-5 ý nổi bật.
+4. Ai phù hợp.
+5. CTA inbox nhận bảng hàng/chính sách.
+6. Hashtag.
+
+Quy tắc:
+- Không bịa giá, diện tích, chính sách, pháp lý.
+- Không cam kết lợi nhuận.
+- Plain text, dễ copy đăng ngay.
+`,
+
 content: `
 Chế độ /content:
 Viết content ads bất động sản theo đúng style chạy quảng cáo thực chiến của Cường.
@@ -368,18 +462,13 @@ return (
 '/tinnhan - Soạn tin nhắn Zalo/Facebook\n' +
 '/tuyendung - Viết content tuyển dụng sale\n' +
 '/addkh - Thêm khách hàng vào Google Sheet CRM\n' +
-'/dskh - Xem 10 khách hàng gần nhất trong CRM\n' +
-'/timkh - Tìm khách theo số điện thoại\n' +
 '/crmtest - Kiểm tra kết nối Google Sheet CRM\n' +
 '/clear - Xóa lịch sử chat và chế độ đang dùng\n\n' +
 'Mẫu thêm khách đúng form CRM:\n' +
 '/addkh Họ tên | SĐT | Nguồn | Ngày ra | Người chăm | Tình trạng chăm sóc\n\n' +
 'Ví dụ:\n' +
 '/addkh Nguyễn Văn A | 0988123456 | Facebook Ads | 31/05/2026 | Cường | Khách hỏi Vin Cần Giờ, tài chính 20 tỷ\n\n' +
-'Tìm khách:\n' +
-'/timkh 0988123456\n\n' +
-'Xem danh sách khách mới nhất:\n' +
-'/dskh'
+'/content Viết content ads biệt thự song lập biển Vin Cần Giờ, giá từ 110tr/m2'
 );
 }
 
@@ -404,7 +493,6 @@ await bot.sendMessage(chatId, '✅ Đã xóa lịch sử chat và chế độ đ
 bot.onText(/\/crmtest/, async (msg) => {
 const chatId = msg.chat.id;
 
-try {
 const result = await sendToCRM({
 action: 'log_chat',
 chatId,
@@ -419,89 +507,9 @@ await bot.sendMessage(chatId, '✅ Kết nối Google Sheet CRM thành công.');
 } else {
 await bot.sendMessage(chatId, `❌ Kết nối CRM lỗi: ${result.message}`);
 }
-} catch (error) {
-console.error('Lỗi /crmtest:', error);
-await bot.sendMessage(chatId, '❌ Lỗi khi test CRM: ' + error.message);
-}
 });
 
-bot.onText(/\/addkh$/, async (msg) => {
-const chatId = msg.chat.id;
-
-await bot.sendMessage(
-chatId,
-'➕ THÊM KHÁCH VÀO CRM\n\n' +
-'Mẫu nhập:\n' +
-'/addkh Họ tên | SĐT | Nguồn | Ngày ra | Người chăm | Tình trạng chăm sóc\n\n' +
-'Ví dụ:\n' +
-'/addkh Cô Minh | 0982962315 | FB | 31/5 | Cường | C31/5 khách hỏi Vin Cần Giờ'
-);
-});
-
-bot.onText(/\/addkh (.+)/, async (msg, match) => {
-const chatId = msg.chat.id;
-const input = match[1];
-
-try {
-const parts = input.split('|').map(item => item.trim());
-
-const name = parts[0] || '';
-const phone = parts[1] || '';
-const source = parts[2] || 'Telegram';
-const dateOut = parts[3] || new Date().toLocaleDateString('vi-VN');
-const owner = parts[4] || 'Cường';
-const careStatus = parts[5] || '';
-
-if (!name || !phone) {
-return bot.sendMessage(
-chatId,
-'❌ Thiếu họ tên hoặc SĐT.\n\n' +
-'Mẫu đúng:\n' +
-'/addkh Họ tên | SĐT | Nguồn | Ngày ra | Người chăm | Tình trạng chăm sóc'
-);
-}
-
-const result = await sendToCRM({
-action: 'add_customer',
-name,
-phone,
-source,
-dateOut,
-owner,
-careStatus
-});
-
-if (result.duplicate) {
-return bot.sendMessage(
-chatId,
-`⚠️ SĐT BỊ TRÙNG TRONG CRM\n\n` +
-`☎️ SĐT: ${result.phone || phone}\n` +
-`👤 Khách đã có: ${result.name || 'Chưa có tên'}\n` +
-`📍 Dòng Sheet: ${result.row || 'Không rõ'}\n` +
-`📝 Tình trạng cũ: ${result.careStatus || 'Chưa có'}\n\n` +
-`Bot chưa thêm khách mới để tránh bị trùng dữ liệu.\n` +
-`Bạn có thể dùng lệnh:\n/timkh ${result.phone || phone}`
-);
-}
-
-if (!result.ok) {
-return bot.sendMessage(chatId, '❌ Không lưu được khách hàng.\n\nLỗi: ' + result.message);
-}
-
-return bot.sendMessage(
-chatId,
-`✅ ĐÃ LƯU KHÁCH VÀO CRM\n\n` +
-`👤 Họ tên: ${result.name || name}\n` +
-`☎️ SĐT: ${result.phone || phone}\n` +
-`📍 Dòng Sheet: ${result.row || 'Không rõ'}`
-);
-} catch (error) {
-console.error('Lỗi /addkh:', error);
-return bot.sendMessage(chatId, '❌ Lỗi khi thêm khách: ' + error.message);
-}
-});
-
-bot.onText(/\/dskh$/, async (msg) => {
+bot.onText(/\/dskh/, async (msg) => {
 const chatId = msg.chat.id;
 
 try {
@@ -529,7 +537,7 @@ text += `📌 Nguồn: ${kh.source || 'Chưa có'}\n`;
 text += `📅 Ngày ra: ${kh.dateOut || 'Chưa có'}\n`;
 text += `👤 Người chăm: ${kh.owner || 'Chưa có'}\n`;
 text += `📝 Tình trạng: ${kh.careStatus || 'Chưa có'}\n`;
-text += `📍 Dòng Sheet: ${kh.rowNumber || 'Không rõ'}\n\n`;
+text += `📍 Dòng Sheet: ${kh.rowNumber}\n\n`;
 });
 
 return bot.sendMessage(chatId, text);
@@ -539,11 +547,6 @@ return bot.sendMessage(chatId, '❌ Lỗi khi xem danh sách khách: ' + error.m
 }
 });
 
-bot.onText(/\/timkh$/, async (msg) => {
-const chatId = msg.chat.id;
-return bot.sendMessage(chatId, 'Bạn nhập theo mẫu:\n\n/timkh 0988888888');
-});
-
 bot.onText(/\/timkh (.+)/, async (msg, match) => {
 const chatId = msg.chat.id;
 const phone = match[1].trim();
@@ -551,7 +554,7 @@ const phone = match[1].trim();
 try {
 const result = await sendToCRM({
 action: 'find_customer',
-phone
+phone: phone
 });
 
 if (!result.ok) {
@@ -575,7 +578,7 @@ text += `📌 Nguồn: ${kh.source || 'Chưa có'}\n`;
 text += `📅 Ngày ra: ${kh.dateOut || 'Chưa có'}\n`;
 text += `👤 Người chăm: ${kh.owner || 'Chưa có'}\n`;
 text += `📝 Tình trạng: ${kh.careStatus || 'Chưa có'}\n`;
-text += `📍 Dòng Sheet: ${kh.rowNumber || 'Không rõ'}\n\n`;
+text += `📍 Dòng Sheet: ${kh.rowNumber}\n\n`;
 });
 
 return bot.sendMessage(chatId, text);
@@ -583,6 +586,77 @@ return bot.sendMessage(chatId, text);
 console.error('Lỗi /timkh:', error);
 return bot.sendMessage(chatId, '❌ Lỗi khi tìm khách: ' + error.message);
 }
+});
+
+bot.onText(/\/timkh$/, async (msg) => {
+const chatId = msg.chat.id;
+return bot.sendMessage(chatId, 'Bạn nhập theo mẫu:\n\n/timkh 0988888888');
+});
+
+bot.onText(/\/addkh$/, async (msg) => {
+const chatId = msg.chat.id;
+
+await bot.sendMessage(
+chatId,
+'Sai cú pháp.\nDùng mẫu:\n/addkh Họ tên | SĐT | Nguồn | Ngày ra | Người chăm | Tình trạng chăm sóc\n\nVí dụ:\n/addkh Nguyễn Văn A | 0988123456 | Facebook Ads | 31/05/2026 | Cường | Khách hỏi Vin Cần Giờ, tài chính 20 tỷ'
+);
+});
+
+bot.onText(/\/addkh (.+)/, async (msg, match) => {
+const chatId = msg.chat.id;
+const input = match[1];
+
+const parts = input.split('|').map(item => item.trim());
+
+const name = parts[0] || '';
+const phone = parts[1] || '';
+const source = parts[2] || 'Telegram';
+const dateOut = parts[3] || new Date().toLocaleDateString('vi-VN');
+const owner = parts[4] || 'Cường';
+const careStatus = parts[5] || '';
+
+if (!name || !phone) {
+await bot.sendMessage(
+chatId,
+'Sai cú pháp.\nDùng mẫu:\n/addkh Họ tên | SĐT | Nguồn | Ngày ra | Người chăm | Tình trạng chăm sóc'
+);
+return;
+}
+
+const result = await sendToCRM({
+  action: 'add_customer',
+  name,
+  phone,
+  source,
+  dateOut,
+  owner,
+  careStatus
+});
+
+if (result.duplicate) {
+  return bot.sendMessage(
+    chatId,
+    `⚠️ SĐT BỊ TRÙNG TRONG CRM\n\n` +
+    `☎️ SĐT: ${result.phone}\n` +
+    `👤 Khách đã có: ${result.name || 'Chưa có tên'}\n` +
+    `📍 Dòng Sheet: ${result.row}\n` +
+    `📝 Tình trạng cũ: ${result.careStatus || 'Chưa có'}\n\n` +
+    `Bot chưa thêm khách mới để tránh bị trùng dữ liệu.\n` +
+    `Bạn có thể dùng lệnh:\n/timkh ${result.phone}`
+  );
+}
+
+if (!result.ok) {
+  return bot.sendMessage(chatId, '❌ Không lưu được khách hàng.\n\nLỗi: ' + result.message);
+}
+
+return bot.sendMessage(
+  chatId,
+  `✅ ĐÃ LƯU KHÁCH VÀO CRM\n\n` +
+  `👤 Họ tên: ${result.name}\n` +
+  `☎️ SĐT: ${result.phone}\n` +
+  `📍 Dòng Sheet: ${result.row}`
+);
 });
 
 bot.on('message', async (msg) => {
@@ -596,10 +670,7 @@ rawText === '/start' ||
 rawText === '/clear' ||
 rawText === '/crmtest' ||
 rawText === '/addkh' ||
-rawText.startsWith('/addkh ') ||
-rawText === '/dskh' ||
-rawText === '/timkh' ||
-rawText.startsWith('/timkh ')
+rawText.startsWith('/addkh ')
 ) {
 return;
 }
@@ -626,41 +697,40 @@ return;
 
 try {
 await bot.sendChatAction(chatId, 'typing');
-
 let instruction = SYSTEM_PROMPT;
 
 if (COMMAND_PROMPTS[activeCommand]) {
-instruction += '\n\n' + COMMAND_PROMPTS[activeCommand];
+  instruction += '\n\n' + COMMAND_PROMPTS[activeCommand];
 }
 
 conversations[chatId].push({
-role: 'user',
-parts: [{ text }]
+  role: 'user',
+  parts: [{ text }]
 });
 
 await logChatToCRM(msg, 'user', text);
 
 const response = await ai.models.generateContent({
-model: GEMINI_MODEL,
-contents: conversations[chatId],
-config: {
-systemInstruction: instruction,
-maxOutputTokens: 3000,
-temperature: 0.55
-}
+  model: GEMINI_MODEL,
+  contents: conversations[chatId],
+  config: {
+    systemInstruction: instruction,
+    maxOutputTokens: 3000,
+    temperature: 0.55
+  }
 });
 
 const reply = response.text || 'Xin lỗi, tôi chưa có phản hồi phù hợp.';
 
 conversations[chatId].push({
-role: 'model',
-parts: [{ text: reply }]
+  role: 'model',
+  parts: [{ text: reply }]
 });
 
 await logChatToCRM(msg, 'bot', reply);
 
 if (conversations[chatId].length > MAX_HISTORY_ITEMS) {
-conversations[chatId] = conversations[chatId].slice(-MAX_HISTORY_ITEMS);
+  conversations[chatId] = conversations[chatId].slice(-MAX_HISTORY_ITEMS);
 }
 
 await sendLongMessage(chatId, reply);
@@ -671,17 +741,28 @@ let errorText = '❌ Có lỗi xảy ra, thử lại nhé.';
 const message = (err.message || '').toLowerCase();
 
 if (message.includes('api key')) {
-errorText = '❌ Gemini API key đang sai hoặc chưa được kích hoạt.';
+  errorText = '❌ Gemini API key đang sai hoặc chưa được kích hoạt.';
 } else if (message.includes('quota')) {
-errorText = '❌ Gemini API đang hết quota hoặc bị giới hạn lượt dùng.';
+  errorText = '❌ Gemini API đang hết quota hoặc bị giới hạn lượt dùng.';
 } else if (message.includes('safety')) {
-errorText = '❌ Nội dung bị hệ thống AI chặn vì lý do an toàn.';
+  errorText = '❌ Nội dung bị hệ thống AI chặn vì lý do an toàn.';
 } else if (message.includes('409')) {
-errorText = '❌ Bot đang bị chạy trùng 2 nơi. Hãy tắt bản local nếu Railway đang chạy.';
+  errorText = '❌ Bot đang bị chạy trùng 2 nơi. Hãy tắt bản local nếu Railway đang chạy.';
 }
 
 await bot.sendMessage(chatId, errorText);
 }
 });
 
+const PORT = process.env.PORT || 3000;
+
+http.createServer((req, res) => {
+res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+res.end('Bot Gemini BĐS đang chạy');
+}).listen(PORT, () => {
+console.log(`🌐 Health server đang chạy tại port ${PORT}`);
+});
+
 console.log('🤖 Bot Gemini BĐS đang chạy...');
+
+
