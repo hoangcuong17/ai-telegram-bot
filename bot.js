@@ -29,6 +29,84 @@ const MAX_HISTORY_ITEMS = 20;
 const GEMINI_MODEL = 'gemini-2.5-flash';
 const GOOGLE_SCRIPT_URL = process.env.GOOGLE_SCRIPT_URL || '';
 
+const CRM_PROJECTS = {
+  cangio: { label: 'Vin Cần Giờ' },
+  halong: { label: 'Vin Hạ Long Xanh' },
+  halong_ucall: { label: 'Vin Hạ Long - Khách Ucall' }
+};
+
+const PROJECT_ALIASES = {
+  can_gio: 'cangio',
+  cangio: 'cangio',
+  'cần_giờ': 'cangio',
+  'can-giờ': 'cangio',
+  cg: 'cangio',
+  ha_long: 'halong',
+  halong: 'halong',
+  'hạ_long': 'halong',
+  hl: 'halong',
+  ha_long_ucall: 'halong_ucall',
+  halong_ucall: 'halong_ucall',
+  ucall: 'halong_ucall',
+  all: 'all'
+};
+
+const currentProjects = {};
+const DEFAULT_PROJECT = 'cangio';
+
+function normalizeProjectKey(value) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (!raw) return '';
+  const safe = raw
+    .replace(/\s+/g, '_')
+    .replace(/-/g, '_')
+    .replace(/vin_/g, '');
+  return PROJECT_ALIASES[safe] || PROJECT_ALIASES[raw] || '';
+}
+
+function getCurrentProject(chatId) {
+  return currentProjects[chatId] || DEFAULT_PROJECT;
+}
+
+function setCurrentProject(chatId, project) {
+  currentProjects[chatId] = project;
+}
+
+function getProjectLabel(project) {
+  if (project === 'all') return 'Tất cả dự án';
+  return CRM_PROJECTS[project]?.label || project;
+}
+
+function buildProjectListText() {
+  return Object.entries(CRM_PROJECTS)
+    .map(([key, value]) => `- ${key}: ${value.label}`)
+    .join('\n');
+}
+
+function parseProjectAndRest(text, fallbackProject) {
+  const trimmed = String(text || '').trim();
+  if (!trimmed) return { project: fallbackProject || DEFAULT_PROJECT, rest: '' };
+
+  const firstToken = trimmed.split(/\s+|\|/)[0].trim();
+  const project = normalizeProjectKey(firstToken);
+
+  if (project && project !== 'all') {
+    let rest = trimmed.slice(firstToken.length).trim();
+    if (rest.startsWith('|')) rest = rest.slice(1).trim();
+    return { project, rest };
+  }
+
+  return { project: fallbackProject || DEFAULT_PROJECT, rest: trimmed };
+}
+
+function normalizePhoneForDisplay(value) {
+  if (!value) return '';
+  let phone = String(value).trim().replace(/[\s\.\-]/g, '');
+  if (phone.startsWith('+84')) phone = '0' + phone.substring(3);
+  if (phone.startsWith('84') && phone.length >= 11) phone = '0' + phone.substring(2);
+  return phone;
+}
+
 async function sendToCRM(payload) {
 if (!GOOGLE_SCRIPT_URL) {
 console.warn('⚠️ Chưa có GOOGLE_SCRIPT_URL, bỏ qua lưu CRM.');
@@ -62,6 +140,7 @@ const from = msg.from || {};
 
 return sendToCRM({
 action: 'log_chat',
+project: getCurrentProject(msg.chat.id),
 chatId: msg.chat.id,
 telegramId: from.id || '',
 username: from.username || '',
@@ -75,6 +154,7 @@ const from = msg.from || {};
 
 return sendToCRM({
 action: 'add_customer',
+project: customerData.project || getCurrentProject(msg.chat.id),
 name: customerData.name || '',
 phone: customerData.phone || '',
 source: customerData.source || 'Telegram',
@@ -451,25 +531,36 @@ return guide[command] || 'Bạn gửi thêm nội dung cần xử lý nhé.';
 }
 
 function buildStartMessage() {
-return (
-'👋 Xin chào! Tôi là trợ lý AI BĐS của Hoàng Cường.\n\n' +
-'Các lệnh có thể dùng:\n' +
-'/content - Viết content quảng cáo/content thương hiệu\n' +
-'/khach - Phân tích khách hàng\n' +
-'/duan - Tư vấn/thuyết minh dự án\n' +
-'/dashboard - Tạo dashboard GĐKD\n' +
-'/goikhach - Chọn khách nên gọi/chăm trước\n' +
-'/tinnhan - Soạn tin nhắn Zalo/Facebook\n' +
-'/tuyendung - Viết content tuyển dụng sale\n' +
-'/addkh - Thêm khách hàng vào Google Sheet CRM\n' +
-'/crmtest - Kiểm tra kết nối Google Sheet CRM\n' +
-'/clear - Xóa lịch sử chat và chế độ đang dùng\n\n' +
-'Mẫu thêm khách đúng form CRM:\n' +
-'/addkh Họ tên | SĐT | Nguồn | Ngày ra | Người chăm | Tình trạng chăm sóc\n\n' +
-'Ví dụ:\n' +
-'/addkh Nguyễn Văn A | 0988123456 | Facebook Ads | 31/05/2026 | Cường | Khách hỏi Vin Cần Giờ, tài chính 20 tỷ\n\n' +
-'/content Viết content ads biệt thự song lập biển Vin Cần Giờ, giá từ 110tr/m2'
-);
+return `👋 Xin chào! Tôi là trợ lý AI BĐS của Hoàng Cường.
+
+CRM hiện hỗ trợ nhiều dự án riêng file:
+${buildProjectListText()}
+
+Các lệnh CRM:
+/duan - Xem/chọn dự án CRM đang dùng
+/duan cangio - Chuyển sang CRM Vin Cần Giờ
+/duan halong - Chuyển sang CRM Vin Hạ Long Xanh
+/duan halong_ucall - Chuyển sang CRM Hạ Long Ucall
+/crmtest - Kiểm tra CRM dự án hiện tại
+/dskh - Xem 10 khách gần nhất của dự án hiện tại
+/timkh 0988123456 - Tìm khách trong dự án hiện tại
+/timkh all 0988123456 - Tìm khách trên tất cả dự án
+/addkh Họ tên | SĐT | Nguồn | Ngày ra | Người chăm | Tình trạng chăm sóc
+
+Có thể ghi thẳng dự án trong lệnh:
+/addkh halong | Nguyễn Văn A | 0988123456 | Facebook Ads | 01/06/2026 | Cường | Khách hỏi Vin Hạ Long
+
+Các lệnh AI:
+/content - Viết content quảng cáo/content thương hiệu
+/khach - Phân tích khách hàng
+/duan <nội dung tư vấn> - Nếu không phải mã CRM, bot sẽ hiểu là tư vấn dự án
+/dashboard - Tạo dashboard GĐKD
+/goikhach - Chọn khách nên gọi/chăm trước
+/tinnhan - Soạn tin nhắn Zalo/Facebook
+/tuyendung - Viết content tuyển dụng sale
+/clear - Xóa lịch sử chat và chế độ đang dùng
+
+Hiện tại CRM mặc định: ${getProjectLabel(DEFAULT_PROJECT)}`;
 }
 
 bot.onText(/\/start/, async (msg) => {
@@ -490,11 +581,36 @@ conversationModes[chatId] = null;
 await bot.sendMessage(chatId, '✅ Đã xóa lịch sử chat và chế độ đang dùng.');
 });
 
-bot.onText(/\/crmtest/, async (msg) => {
+bot.onText(/\/duan(?:\s+(.+))?$/, async (msg, match) => {
 const chatId = msg.chat.id;
+const input = (match && match[1] ? match[1].trim() : '');
+
+if (!input) {
+return bot.sendMessage(
+chatId,
+`📌 CRM đang chọn: ${getProjectLabel(getCurrentProject(chatId))}\n\n` +
+`Các mã CRM có thể chọn:\n${buildProjectListText()}\n\n` +
+`Ví dụ:\n/duan cangio\n/duan halong\n/duan halong_ucall`
+);
+}
+
+const project = normalizeProjectKey(input);
+if (project && project !== 'all' && CRM_PROJECTS[project]) {
+setCurrentProject(chatId, project);
+return bot.sendMessage(chatId, `✅ Đã chuyển sang CRM: ${getProjectLabel(project)}\n\nTừ giờ /addkh, /dskh, /timkh sẽ dùng dự án này.`);
+}
+
+// Nếu không phải mã CRM thì để handler AI phía dưới xử lý như lệnh /duan tư vấn dự án.
+});
+
+bot.onText(/\/crmtest(?:\s+(.+))?$/, async (msg, match) => {
+const chatId = msg.chat.id;
+const requested = normalizeProjectKey(match && match[1] ? match[1] : '');
+const project = requested && requested !== 'all' ? requested : getCurrentProject(chatId);
 
 const result = await sendToCRM({
 action: 'log_chat',
+project,
 chatId,
 telegramId: msg.from?.id || '',
 username: msg.from?.username || '',
@@ -503,18 +619,21 @@ content: 'Test kết nối CRM từ Telegram bot',
 });
 
 if (result.ok) {
-await bot.sendMessage(chatId, '✅ Kết nối Google Sheet CRM thành công.');
+await bot.sendMessage(chatId, `✅ Kết nối CRM ${getProjectLabel(project)} thành công.`);
 } else {
-await bot.sendMessage(chatId, `❌ Kết nối CRM lỗi: ${result.message}`);
+await bot.sendMessage(chatId, `❌ Kết nối CRM ${getProjectLabel(project)} lỗi: ${result.message}`);
 }
 });
 
-bot.onText(/\/dskh/, async (msg) => {
+bot.onText(/\/dskh(?:\s+(.+))?$/, async (msg, match) => {
 const chatId = msg.chat.id;
+const requested = normalizeProjectKey(match && match[1] ? match[1] : '');
+const project = requested && requested !== 'all' ? requested : getCurrentProject(chatId);
 
 try {
 const result = await sendToCRM({
 action: 'list_customers',
+project,
 limit: 10
 });
 
@@ -525,10 +644,10 @@ return bot.sendMessage(chatId, '❌ Không lấy được danh sách khách.\n\n
 const customers = result.customers || [];
 
 if (customers.length === 0) {
-return bot.sendMessage(chatId, '📭 CRM hiện chưa có khách hàng nào.');
+return bot.sendMessage(chatId, `📭 CRM ${getProjectLabel(project)} hiện chưa có khách hàng nào.`);
 }
 
-let text = '📋 DANH SÁCH 10 KHÁCH GẦN NHẤT\n\n';
+let text = `📋 10 KHÁCH GẦN NHẤT - ${getProjectLabel(project).toUpperCase()}\n\n`;
 
 customers.forEach((kh, index) => {
 text += `${index + 1}. ${kh.name || 'Chưa có tên'}\n`;
@@ -547,13 +666,33 @@ return bot.sendMessage(chatId, '❌ Lỗi khi xem danh sách khách: ' + error.m
 }
 });
 
-bot.onText(/\/timkh (.+)/, async (msg, match) => {
+bot.onText(/\/timkh(?:\s+(.+))?$/, async (msg, match) => {
 const chatId = msg.chat.id;
-const phone = match[1].trim();
+const input = (match && match[1] ? match[1].trim() : '');
+
+if (!input) {
+return bot.sendMessage(chatId, 'Bạn nhập theo mẫu:\n\n/timkh 0988888888\n/timkh all 0988888888\n/timkh halong 0988888888');
+}
+
+const firstToken = input.split(/\s+/)[0];
+const maybeProject = normalizeProjectKey(firstToken);
+let project = getCurrentProject(chatId);
+let phone = input;
+
+if (maybeProject) {
+project = maybeProject;
+phone = input.slice(firstToken.length).trim();
+}
+
+phone = normalizePhoneForDisplay(phone);
+if (!phone) {
+return bot.sendMessage(chatId, 'Bạn cần nhập SĐT. Ví dụ:\n/timkh all 0988888888');
+}
 
 try {
 const result = await sendToCRM({
 action: 'find_customer',
+project,
 phone: phone
 });
 
@@ -561,11 +700,31 @@ if (!result.ok) {
 return bot.sendMessage(chatId, '❌ Không tìm được khách.\n\nLỗi: ' + result.message);
 }
 
-if (!result.found || !result.customers || result.customers.length === 0) {
-return bot.sendMessage(chatId, `🔎 Không tìm thấy khách có SĐT: ${phone}`);
+if (project === 'all') {
+  const groups = result.results || [];
+  const foundGroups = groups.filter(g => g.found && g.customers && g.customers.length > 0);
+  if (foundGroups.length === 0) {
+    return bot.sendMessage(chatId, `🔎 Không tìm thấy khách có SĐT: ${phone} trên tất cả dự án.`);
+  }
+
+  let text = `🔎 KẾT QUẢ TÌM SĐT: ${phone}\n\n`;
+  foundGroups.forEach(group => {
+    text += `🏗 ${group.projectLabel}\n`;
+    group.customers.forEach((kh, index) => {
+      text += `${index + 1}. ${kh.name || 'Chưa có tên'} - dòng ${kh.rowNumber}\n`;
+      text += `📌 Nguồn: ${kh.source || 'Chưa có'} | 👤 ${kh.owner || 'Chưa có'}\n`;
+      text += `📝 ${kh.careStatus || 'Chưa có tình trạng'}\n`;
+    });
+    text += '\n';
+  });
+  return bot.sendMessage(chatId, text);
 }
 
-let text = `🔎 KẾT QUẢ TÌM KHÁCH THEO SĐT: ${phone}\n\n`;
+if (!result.found || !result.customers || result.customers.length === 0) {
+return bot.sendMessage(chatId, `🔎 Không tìm thấy khách có SĐT: ${phone} trong CRM ${getProjectLabel(project)}`);
+}
+
+let text = `🔎 KẾT QUẢ TÌM KHÁCH - ${getProjectLabel(project).toUpperCase()}\nSĐT: ${phone}\n\n`;
 
 if (result.customers.length > 1) {
 text += `⚠️ Cảnh báo: SĐT này đang bị trùng ${result.customers.length} dòng trong CRM.\n\n`;
@@ -588,17 +747,13 @@ return bot.sendMessage(chatId, '❌ Lỗi khi tìm khách: ' + error.message);
 }
 });
 
-bot.onText(/\/timkh$/, async (msg) => {
-const chatId = msg.chat.id;
-return bot.sendMessage(chatId, 'Bạn nhập theo mẫu:\n\n/timkh 0988888888');
-});
-
 bot.onText(/\/addkh$/, async (msg) => {
 const chatId = msg.chat.id;
-
 await bot.sendMessage(
 chatId,
-'Sai cú pháp.\nDùng mẫu:\n/addkh Họ tên | SĐT | Nguồn | Ngày ra | Người chăm | Tình trạng chăm sóc\n\nVí dụ:\n/addkh Nguyễn Văn A | 0988123456 | Facebook Ads | 31/05/2026 | Cường | Khách hỏi Vin Cần Giờ, tài chính 20 tỷ'
+`Sai cú pháp.\nCRM đang chọn: ${getProjectLabel(getCurrentProject(chatId))}\n\n` +
+'Dùng mẫu:\n/addkh Họ tên | SĐT | Nguồn | Ngày ra | Người chăm | Tình trạng chăm sóc\n\n' +
+'Hoặc chỉ định dự án:\n/addkh halong | Họ tên | SĐT | Nguồn | Ngày ra | Người chăm | Tình trạng chăm sóc'
 );
 });
 
@@ -606,10 +761,12 @@ bot.onText(/\/addkh (.+)/, async (msg, match) => {
 const chatId = msg.chat.id;
 const input = match[1];
 
-const parts = input.split('|').map(item => item.trim());
+const parsed = parseProjectAndRest(input, getCurrentProject(chatId));
+const project = parsed.project;
+const parts = parsed.rest.split('|').map(item => item.trim());
 
 const name = parts[0] || '';
-const phone = parts[1] || '';
+const phone = normalizePhoneForDisplay(parts[1] || '');
 const source = parts[2] || 'Telegram';
 const dateOut = parts[3] || new Date().toLocaleDateString('vi-VN');
 const owner = parts[4] || 'Cường';
@@ -618,13 +775,14 @@ const careStatus = parts[5] || '';
 if (!name || !phone) {
 await bot.sendMessage(
 chatId,
-'Sai cú pháp.\nDùng mẫu:\n/addkh Họ tên | SĐT | Nguồn | Ngày ra | Người chăm | Tình trạng chăm sóc'
+'Sai cú pháp.\nDùng mẫu:\n/addkh Họ tên | SĐT | Nguồn | Ngày ra | Người chăm | Tình trạng chăm sóc\n\nHoặc:\n/addkh halong | Họ tên | SĐT | Nguồn | Ngày ra | Người chăm | Tình trạng chăm sóc'
 );
 return;
 }
 
 const result = await sendToCRM({
   action: 'add_customer',
+  project,
   name,
   phone,
   source,
@@ -636,13 +794,13 @@ const result = await sendToCRM({
 if (result.duplicate) {
   return bot.sendMessage(
     chatId,
-    `⚠️ SĐT BỊ TRÙNG TRONG CRM\n\n` +
+    `⚠️ SĐT BỊ TRÙNG TRONG CRM ${getProjectLabel(project)}\n\n` +
     `☎️ SĐT: ${result.phone}\n` +
     `👤 Khách đã có: ${result.name || 'Chưa có tên'}\n` +
     `📍 Dòng Sheet: ${result.row}\n` +
     `📝 Tình trạng cũ: ${result.careStatus || 'Chưa có'}\n\n` +
     `Bot chưa thêm khách mới để tránh bị trùng dữ liệu.\n` +
-    `Bạn có thể dùng lệnh:\n/timkh ${result.phone}`
+    `Bạn có thể dùng lệnh:\n/timkh ${project} ${result.phone}`
   );
 }
 
@@ -652,7 +810,7 @@ if (!result.ok) {
 
 return bot.sendMessage(
   chatId,
-  `✅ ĐÃ LƯU KHÁCH VÀO CRM\n\n` +
+  `✅ ĐÃ LƯU KHÁCH VÀO CRM ${getProjectLabel(project)}\n\n` +
   `👤 Họ tên: ${result.name}\n` +
   `☎️ SĐT: ${result.phone}\n` +
   `📍 Dòng Sheet: ${result.row}`
@@ -668,11 +826,20 @@ if (!rawText) return;
 if (
 rawText === '/start' ||
 rawText === '/clear' ||
-rawText === '/crmtest' ||
+rawText.startsWith('/crmtest') ||
+rawText.startsWith('/dskh') ||
+rawText.startsWith('/timkh') ||
 rawText === '/addkh' ||
 rawText.startsWith('/addkh ')
 ) {
 return;
+}
+
+// /duan có 2 nghĩa: nếu là mã CRM thì đã xử lý ở trên và không gửi sang AI.
+if (rawText.startsWith('/duan')) {
+  const maybeProjectText = rawText.replace('/duan', '').trim();
+  const maybeProject = normalizeProjectKey(maybeProjectText);
+  if (maybeProject && maybeProject !== 'all') return;
 }
 
 if (!conversations[chatId]) conversations[chatId] = [];
