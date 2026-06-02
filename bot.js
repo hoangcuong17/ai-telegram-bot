@@ -1,4 +1,4 @@
-﻿require('dotenv').config();
+require('dotenv').config();
 
 const http = require('http');
 const fs = require('fs');
@@ -478,14 +478,44 @@ if (current.length > 0) chunks.push(current);
 return chunks;
 }
 
+function safeLogError(label, err) {
+  const message = err?.message || String(err || '');
+  const statusCode = err?.response?.statusCode || err?.statusCode || '';
+  const body = err?.response?.body;
+  let description = '';
+
+  if (body) {
+    try {
+      const parsed = typeof body === 'string' ? JSON.parse(body) : body;
+      description = parsed?.description || '';
+    } catch (_) {
+      description = typeof body === 'string' ? body.slice(0, 200) : '';
+    }
+  }
+
+  console.error(`❌ ${label}: ${message}${statusCode ? ` | HTTP ${statusCode}` : ''}${description ? ` | ${description}` : ''}`);
+}
+
+async function safeSendMessage(chatId, text, options = {}) {
+  try {
+    return await bot.sendMessage(chatId, text, options);
+  } catch (err) {
+    safeLogError('Lỗi gửi Telegram', err);
+    try {
+      return await bot.sendMessage(chatId, '❌ Tin nhắn quá dài hoặc Telegram không nhận được. Bot đã ghi nhận lỗi, hãy thử lại lệnh ngắn hơn.');
+    } catch (_) {
+      return null;
+    }
+  }
+}
+
 async function sendLongMessage(chatId, text) {
-const chunks = splitMessage(text);
+  const chunks = splitMessage(text, 3300);
 
-for (const chunk of chunks) {
-await bot.sendMessage(chatId, chunk);
+  for (const chunk of chunks) {
+    await safeSendMessage(chatId, chunk);
+  }
 }
-}
-
 function getCommandAndText(text) {
 const trimmed = text.trim();
 
@@ -502,6 +532,171 @@ return {
 command: 'normal',
 text: trimmed
 };
+}
+
+
+
+function shortenText(value, maxLength = 220) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!text) return '';
+  if (text.length <= maxLength) return text;
+  return text.slice(0, maxLength - 3).trim() + '...';
+}
+
+function countKeywordHits(text, keywords) {
+  const lower = String(text || '').toLowerCase();
+  return keywords.reduce((count, keyword) => count + (lower.includes(keyword) ? 1 : 0), 0);
+}
+
+function scoreCustomer(kh) {
+  const care = String(kh.careStatus || '').toLowerCase();
+  const combined = `${kh.name || ''} ${kh.source || ''} ${kh.owner || ''} ${care}`.toLowerCase();
+
+  const hotKeywords = [
+    'hỏi giá', 'giá', 'chính sách', 'csbh', 'bảng hàng', 'bank', 'vay', 'tài chính', 'tc ',
+    'mặt bằng', 'mb', 'vị trí', 'đi xem', 'hẹn', 'cọc', 'giữ căn', 'căn nào',
+    'diện tích', 'dt ', 'quan tâm sâu', 'ngân sách', 'mua', 'đầu tư', 'dtu',
+    'so sánh', 'shophouse', 'biệt thự', 'liền kề', 'song lập', 'đơn lập',
+    'gửi thông tin', 'gửi tt', 'kết bạn zalo', 'kb zl', 'zalo', 'call lại', 'gọi lại'
+  ];
+
+  const warmKeywords = [
+    'quan tâm', 'qtam', 'xem qua', 'nghiên cứu', 'tham khảo', 'gửi anh',
+    'gửi chị', 'để anh xem', 'để chị xem', 'đang bận', 'bận tý', 'bận tí',
+    'đi công tác', 'du lịch', 'tháng nữa', 'sau nhé', 'gọi lại sau'
+  ];
+
+  const coldKeywords = [
+    'kcnc', 'không có nhu cầu', 'ko có nhu cầu', 'không phù hợp', 'k phù hợp',
+    'xa quá', 'hết tiền', 'chưa muốn đầu tư', 'không muốn', 'k muốn',
+    'chặn', 'zalo chặn', 'thuê bao', ' tb', 'toàn tb', 'tắt luôn'
+  ];
+
+  const knmCount = (care.match(/\bknm\b/gi) || []).length;
+  const hotHits = countKeywordHits(combined, hotKeywords);
+  const warmHits = countKeywordHits(combined, warmKeywords);
+  const coldHits = countKeywordHits(combined, coldKeywords);
+
+  let score = 0;
+  score += hotHits * 3;
+  score += warmHits * 1.5;
+  score -= coldHits * 3;
+  score -= Math.min(knmCount, 5) * 0.8;
+
+  if (care.length > 80) score += 1;
+  if ((kh.phone || '').toString().trim()) score += 0.5;
+
+  let level = 'NGUỘI';
+  if (score >= 9) level = 'NÓNG';
+  else if (score >= 4) level = 'ẤM';
+
+  const reasons = [];
+  if (hotHits > 0) reasons.push('có tín hiệu hỏi giá/chính sách/sản phẩm');
+  if (combined.includes('đi xem') || combined.includes('hẹn')) reasons.push('có tín hiệu hẹn/xem dự án');
+  if (combined.includes('tài chính') || combined.includes('tc ') || combined.includes('ngân sách')) reasons.push('có nhắc tài chính/ngân sách');
+  if (combined.includes('zalo') || combined.includes('kb zl')) reasons.push('có thể chăm lại qua Zalo');
+  if (knmCount >= 2) reasons.push(`đã KNM ${knmCount} lần, cần đổi cách tiếp cận`);
+  if (coldHits > 0) reasons.push('có tín hiệu lạnh/từ chối, cần lọc kỹ');
+
+  let action = 'Gọi lại khai thác nhu cầu, tài chính, timeline và sản phẩm đang so sánh.';
+  if (level === 'NÓNG') action = 'Ưu tiên gọi hôm nay, gửi bảng hàng/phương án phù hợp và chốt lịch xem/tư vấn sâu.';
+  if (level === 'ẤM') action = 'Chăm lại bằng Zalo trước, gửi thông tin gọn đúng nhu cầu rồi gọi follow-up.';
+  if (level === 'NGUỘI') action = 'Không ưu tiên gọi nhiều; gửi tin nhắn mềm để lọc lại nhu cầu.';
+
+  return {
+    score: Math.round(score * 10) / 10,
+    level,
+    reasons: reasons.slice(0, 3),
+    action
+  };
+}
+
+async function fetchCustomersForProject(project, limit = 300) {
+  const result = await sendToCRM({
+    action: 'list_customers',
+    project,
+    limit
+  });
+
+  if (!result.ok) {
+    return { ok: false, project, projectLabel: getProjectLabel(project), customers: [], message: result.message || 'Không lấy được dữ liệu' };
+  }
+
+  const customers = (result.customers || []).map(kh => ({
+    ...kh,
+    project,
+    projectLabel: getProjectLabel(project)
+  }));
+
+  return { ok: true, project, projectLabel: getProjectLabel(project), customers };
+}
+
+async function fetchCustomersScope(scope, limitPerProject = 300) {
+  const normalized = normalizeProjectKey(scope);
+  const projects = (!normalized || normalized === 'all')
+    ? Object.keys(CRM_PROJECTS)
+    : [normalized];
+
+  const results = [];
+  for (const project of projects) {
+    if (!CRM_PROJECTS[project]) continue;
+    results.push(await fetchCustomersForProject(project, limitPerProject));
+  }
+
+  const customers = results.flatMap(item => item.customers || []);
+  return { results, customers };
+}
+
+function buildCustomerLine(kh, index, includeProject = true) {
+  const evaluated = kh._score || scoreCustomer(kh);
+  let text = `${index}. ${kh.name || 'Chưa có tên'} | ${normalizePhoneForDisplay(kh.phone) || 'Chưa có SĐT'}\n`;
+  if (includeProject) text += `🏗 ${kh.projectLabel || getProjectLabel(kh.project)}\n`;
+  text += `🔥 Mức: ${evaluated.level} | Điểm: ${evaluated.score}\n`;
+  text += `👤 Sale: ${kh.owner || 'Chưa có'} | 📌 Nguồn: ${kh.source || 'Chưa có'} | Dòng: ${kh.rowNumber || '?'}\n`;
+  text += `📝 ${shortenText(kh.careStatus, 260)}\n`;
+  text += `👉 ${evaluated.action}\n`;
+  if (evaluated.reasons?.length) text += `Lý do: ${evaluated.reasons.join('; ')}\n`;
+  return text;
+}
+
+function evaluateCustomers(customers) {
+  return customers
+    .map(kh => ({ ...kh, _score: scoreCustomer(kh) }))
+    .sort((a, b) => b._score.score - a._score.score);
+}
+
+async function createAiCareSummary(customers, mode = 'goikhach') {
+  const top = customers.slice(0, 12).map((kh, idx) => {
+    return `${idx + 1}. ${kh.name || 'Chưa tên'} | ${kh.phone || ''} | ${kh.projectLabel || ''} | Sale: ${kh.owner || ''} | Level: ${kh._score?.level || ''} | Score: ${kh._score?.score || 0} | Note: ${shortenText(kh.careStatus, 380)}`;
+  }).join('\n');
+
+  const prompt = `
+Bạn là GĐKD BĐS thực chiến. Dựa vào danh sách khách CRM dưới đây, hãy viết báo cáo ngắn gọn cho Hoàng Cường.
+
+Yêu cầu:
+- Không bịa dữ liệu.
+- Không lộ thông tin thừa.
+- Ưu tiên khách có khả năng tạo giao dịch.
+- Nêu việc cần làm ngay hôm nay.
+- Viết tiếng Việt, gọn, rõ, dùng được ngay.
+
+Mode: ${mode}
+
+Dữ liệu khách:
+${top}
+`;
+
+  const response = await ai.models.generateContent({
+    model: GEMINI_MODEL,
+    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    config: {
+      systemInstruction: SYSTEM_PROMPT,
+      maxOutputTokens: 1800,
+      temperature: 0.35
+    }
+  });
+
+  return response.text || '';
 }
 
 function getGuide(command) {
@@ -543,6 +738,9 @@ Các lệnh CRM:
 /duan halong_ucall - Chuyển sang CRM Hạ Long Ucall
 /crmtest - Kiểm tra CRM dự án hiện tại
 /dskh - Xem 10 khách gần nhất của dự án hiện tại
+/quetcrm - Quét toàn bộ CRM và tóm tắt khách nóng/ấm
+/goikhach - Tự quét CRM và chọn khách nên gọi trước
+/dashboard - Tự quét CRM và tạo dashboard GĐKD
 /timkh 0988123456 - Tìm khách trong dự án hiện tại
 /timkh all 0988123456 - Tìm khách trên tất cả dự án
 /addkh Họ tên | SĐT | Nguồn | Ngày ra | Người chăm | Tình trạng chăm sóc
@@ -554,8 +752,6 @@ Các lệnh AI:
 /content - Viết content quảng cáo/content thương hiệu
 /khach - Phân tích khách hàng
 /duan <nội dung tư vấn> - Nếu không phải mã CRM, bot sẽ hiểu là tư vấn dự án
-/dashboard - Tạo dashboard GĐKD
-/goikhach - Chọn khách nên gọi/chăm trước
 /tinnhan - Soạn tin nhắn Zalo/Facebook
 /tuyendung - Viết content tuyển dụng sale
 /clear - Xóa lịch sử chat và chế độ đang dùng
@@ -625,45 +821,47 @@ await bot.sendMessage(chatId, `❌ Kết nối CRM ${getProjectLabel(project)} l
 }
 });
 
+
 bot.onText(/\/dskh(?:\s+(.+))?$/, async (msg, match) => {
-const chatId = msg.chat.id;
-const requested = normalizeProjectKey(match && match[1] ? match[1] : '');
-const project = requested && requested !== 'all' ? requested : getCurrentProject(chatId);
+  const chatId = msg.chat.id;
+  const requested = normalizeProjectKey(match && match[1] ? match[1] : '');
+  const project = requested && requested !== 'all' ? requested : getCurrentProject(chatId);
 
-try {
-const result = await sendToCRM({
-action: 'list_customers',
-project,
-limit: 10
-});
+  try {
+    const result = await sendToCRM({
+      action: 'list_customers',
+      project,
+      limit: 10
+    });
 
-if (!result.ok) {
-return bot.sendMessage(chatId, '❌ Không lấy được danh sách khách.\n\nLỗi: ' + result.message);
-}
+    if (!result.ok) {
+      return safeSendMessage(chatId, '❌ Không lấy được danh sách khách.\n\nLỗi: ' + result.message);
+    }
 
-const customers = result.customers || [];
+    const customers = result.customers || [];
 
-if (customers.length === 0) {
-return bot.sendMessage(chatId, `📭 CRM ${getProjectLabel(project)} hiện chưa có khách hàng nào.`);
-}
+    if (customers.length === 0) {
+      return safeSendMessage(chatId, `📭 CRM ${getProjectLabel(project)} hiện chưa có khách hàng nào.`);
+    }
 
-let text = `📋 10 KHÁCH GẦN NHẤT - ${getProjectLabel(project).toUpperCase()}\n\n`;
+    let text = `📋 10 KHÁCH GẦN NHẤT - ${getProjectLabel(project).toUpperCase()}\n\n`;
 
-customers.forEach((kh, index) => {
-text += `${index + 1}. ${kh.name || 'Chưa có tên'}\n`;
-text += `☎️ SĐT: ${kh.phone || 'Chưa có'}\n`;
-text += `📌 Nguồn: ${kh.source || 'Chưa có'}\n`;
-text += `📅 Ngày ra: ${kh.dateOut || 'Chưa có'}\n`;
-text += `👤 Người chăm: ${kh.owner || 'Chưa có'}\n`;
-text += `📝 Tình trạng: ${kh.careStatus || 'Chưa có'}\n`;
-text += `📍 Dòng Sheet: ${kh.rowNumber}\n\n`;
-});
+    customers.forEach((kh, index) => {
+      text += `${index + 1}. ${kh.name || 'Chưa có tên'}\n`;
+      text += `☎️ SĐT: ${normalizePhoneForDisplay(kh.phone) || 'Chưa có'}\n`;
+      text += `📌 Nguồn: ${kh.source || 'Chưa có'}\n`;
+      text += `📅 Ngày ra: ${kh.dateOut || 'Chưa có'}\n`;
+      text += `👤 Người chăm: ${kh.owner || 'Chưa có'}\n`;
+      text += `📝 Tình trạng: ${shortenText(kh.careStatus, 180) || 'Chưa có'}\n`;
+      text += `📍 Dòng Sheet: ${kh.rowNumber || '?'}\n\n`;
+    });
 
-return bot.sendMessage(chatId, text);
-} catch (error) {
-console.error('Lỗi /dskh:', error);
-return bot.sendMessage(chatId, '❌ Lỗi khi xem danh sách khách: ' + error.message);
-}
+    text += `Muốn xem chi tiết 1 khách thì dùng:\n/timkh ${project} 098xxxxxxx`;
+    return sendLongMessage(chatId, text);
+  } catch (error) {
+    safeLogError('Lỗi /dskh', error);
+    return safeSendMessage(chatId, '❌ Lỗi khi xem danh sách khách: ' + (error.message || 'Không rõ lỗi'));
+  }
 });
 
 bot.onText(/\/timkh(?:\s+(.+))?$/, async (msg, match) => {
@@ -742,7 +940,7 @@ text += `📍 Dòng Sheet: ${kh.rowNumber}\n\n`;
 
 return bot.sendMessage(chatId, text);
 } catch (error) {
-console.error('Lỗi /timkh:', error);
+safeLogError('Lỗi /timkh', error);
 return bot.sendMessage(chatId, '❌ Lỗi khi tìm khách: ' + error.message);
 }
 });
@@ -817,6 +1015,157 @@ return bot.sendMessage(
 );
 });
 
+
+bot.onText(/\/quetcrm(?:\s+(.+))?$/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const scope = (match && match[1] ? match[1].trim() : 'all');
+
+  try {
+    await bot.sendChatAction(chatId, 'typing');
+    const { results, customers } = await fetchCustomersScope(scope, 300);
+    const evaluated = evaluateCustomers(customers);
+    const hot = evaluated.filter(kh => kh._score.level === 'NÓNG');
+    const warm = evaluated.filter(kh => kh._score.level === 'ẤM');
+    const cold = evaluated.filter(kh => kh._score.level === 'NGUỘI');
+
+    let text = `📊 QUÉT CRM ${getProjectLabel(normalizeProjectKey(scope) || 'all').toUpperCase()}\n\n`;
+    results.forEach(item => {
+      text += `🏗 ${item.projectLabel}: ${item.ok ? `${item.customers.length} khách` : `Lỗi - ${item.message}`}\n`;
+    });
+
+    text += `\nTỔNG QUAN:\n`;
+    text += `- Tổng khách đọc được: ${customers.length}\n`;
+    text += `- Khách nóng: ${hot.length}\n`;
+    text += `- Khách ấm: ${warm.length}\n`;
+    text += `- Khách nguội/cần lọc: ${cold.length}\n\n`;
+
+    text += `🔥 TOP 5 KHÁCH NÊN ƯU TIÊN:\n\n`;
+    evaluated.slice(0, 5).forEach((kh, idx) => {
+      text += buildCustomerLine(kh, idx + 1, true) + '\n';
+    });
+
+    text += `Lệnh xem sâu hơn:\n/goikhach all\n/dashboard all`;
+
+    return sendLongMessage(chatId, text);
+  } catch (error) {
+    safeLogError('Lỗi /quetcrm', error);
+    return safeSendMessage(chatId, '❌ Lỗi khi quét CRM: ' + (error.message || 'Không rõ lỗi'));
+  }
+});
+
+bot.onText(/\/goikhach(?:\s+(.+))?$/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const scope = (match && match[1] ? match[1].trim() : 'all');
+
+  try {
+    await bot.sendChatAction(chatId, 'typing');
+    const { customers } = await fetchCustomersScope(scope, 300);
+
+    if (!customers.length) {
+      return safeSendMessage(chatId, '📭 Chưa lấy được khách nào từ CRM để phân tích.');
+    }
+
+    const evaluated = evaluateCustomers(customers);
+    const priority = evaluated.filter(kh => kh._score.score > 0).slice(0, 12);
+
+    let text = `📞 DANH SÁCH KHÁCH NÊN GỌI/CHĂM TRƯỚC\nPhạm vi: ${getProjectLabel(normalizeProjectKey(scope) || 'all')}\nTổng khách đã quét: ${customers.length}\n\n`;
+
+    priority.slice(0, 10).forEach((kh, idx) => {
+      text += buildCustomerLine(kh, idx + 1, true) + '\n';
+    });
+
+    if (priority.length === 0) {
+      text += 'Chưa thấy khách nào đủ tín hiệu nóng/ấm rõ ràng. Nên kiểm tra lại ghi chú chăm sóc hoặc cập nhật CRM.';
+    }
+
+    try {
+      const aiSummary = await createAiCareSummary(priority, 'goikhach');
+      if (aiSummary) {
+        text += `\n\n🧠 GỢI Ý GĐKD:\n${aiSummary}`;
+      }
+    } catch (aiErr) {
+      safeLogError('Gemini tóm tắt /goikhach lỗi', aiErr);
+    }
+
+    return sendLongMessage(chatId, text);
+  } catch (error) {
+    safeLogError('Lỗi /goikhach', error);
+    return safeSendMessage(chatId, '❌ Lỗi khi chọn khách nên gọi: ' + (error.message || 'Không rõ lỗi'));
+  }
+});
+
+bot.onText(/\/dashboard(?:\s+(.+))?$/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const scope = (match && match[1] ? match[1].trim() : 'all');
+
+  try {
+    await bot.sendChatAction(chatId, 'typing');
+    const { results, customers } = await fetchCustomersScope(scope, 300);
+
+    if (!customers.length) {
+      return safeSendMessage(chatId, '📭 Chưa lấy được dữ liệu CRM để tạo dashboard.');
+    }
+
+    const evaluated = evaluateCustomers(customers);
+    const hot = evaluated.filter(kh => kh._score.level === 'NÓNG');
+    const warm = evaluated.filter(kh => kh._score.level === 'ẤM');
+    const cold = evaluated.filter(kh => kh._score.level === 'NGUỘI');
+
+    const byOwner = {};
+    evaluated.forEach(kh => {
+      const owner = kh.owner || 'Chưa rõ';
+      if (!byOwner[owner]) byOwner[owner] = { total: 0, hot: 0, warm: 0 };
+      byOwner[owner].total += 1;
+      if (kh._score.level === 'NÓNG') byOwner[owner].hot += 1;
+      if (kh._score.level === 'ẤM') byOwner[owner].warm += 1;
+    });
+
+    let text = `📊 DASHBOARD GĐKD - CRM BĐS\nPhạm vi: ${getProjectLabel(normalizeProjectKey(scope) || 'all')}\n\n`;
+
+    text += `1. TỔNG QUAN\n`;
+    text += `- Tổng khách đọc được: ${customers.length}\n`;
+    text += `- Khách nóng: ${hot.length}\n`;
+    text += `- Khách ấm: ${warm.length}\n`;
+    text += `- Khách nguội/cần lọc: ${cold.length}\n\n`;
+
+    text += `2. THEO DỰ ÁN\n`;
+    results.forEach(item => {
+      const projectCustomers = evaluated.filter(kh => kh.project === item.project);
+      const projectHot = projectCustomers.filter(kh => kh._score.level === 'NÓNG').length;
+      const projectWarm = projectCustomers.filter(kh => kh._score.level === 'ẤM').length;
+      text += `- ${item.projectLabel}: ${item.customers.length} khách | Nóng ${projectHot} | Ấm ${projectWarm}\n`;
+    });
+
+    text += `\n3. SALE/NGƯỜI CHĂM CẦN CHÚ Ý\n`;
+    Object.entries(byOwner)
+      .sort((a, b) => (b[1].hot + b[1].warm) - (a[1].hot + a[1].warm))
+      .slice(0, 8)
+      .forEach(([owner, stat]) => {
+        text += `- ${owner}: ${stat.total} khách | Nóng ${stat.hot} | Ấm ${stat.warm}\n`;
+      });
+
+    text += `\n4. TOP KHÁCH CẦN XỬ LÝ TRONG 24H\n\n`;
+    evaluated.slice(0, 8).forEach((kh, idx) => {
+      text += buildCustomerLine(kh, idx + 1, true) + '\n';
+    });
+
+    try {
+      const aiSummary = await createAiCareSummary(evaluated.slice(0, 12), 'dashboard');
+      if (aiSummary) {
+        text += `\n\n🧠 NHẬN ĐỊNH & VIỆC CẦN LÀM:\n${aiSummary}`;
+      }
+    } catch (aiErr) {
+      safeLogError('Gemini tóm tắt /dashboard lỗi', aiErr);
+    }
+
+    return sendLongMessage(chatId, text);
+  } catch (error) {
+    safeLogError('Lỗi /dashboard', error);
+    return safeSendMessage(chatId, '❌ Lỗi khi tạo dashboard: ' + (error.message || 'Không rõ lỗi'));
+  }
+});
+
+
 bot.on('message', async (msg) => {
 const chatId = msg.chat.id;
 const rawText = msg.text;
@@ -829,6 +1178,9 @@ rawText === '/clear' ||
 rawText.startsWith('/crmtest') ||
 rawText.startsWith('/dskh') ||
 rawText.startsWith('/timkh') ||
+rawText.startsWith('/quetcrm') ||
+rawText.startsWith('/goikhach') ||
+rawText.startsWith('/dashboard') ||
 rawText === '/addkh' ||
 rawText.startsWith('/addkh ')
 ) {
@@ -902,7 +1254,7 @@ if (conversations[chatId].length > MAX_HISTORY_ITEMS) {
 
 await sendLongMessage(chatId, reply);
 } catch (err) {
-console.error('Lỗi:', err);
+safeLogError('Lỗi AI handler', err);
 let errorText = '❌ Có lỗi xảy ra, thử lại nhé.';
 
 const message = (err.message || '').toLowerCase();
